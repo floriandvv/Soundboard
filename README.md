@@ -162,4 +162,4 @@ Before publishing, consider adding automated tests for asset scanning, path trav
 
 ## License
 
-No license has been selected yet. Add a `LICENSE` file before distributing the project publicly.
+As seen in the `LICENSE` file.
