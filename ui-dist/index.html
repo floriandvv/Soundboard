@@ -1,0 +1,2261 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DnD Soundboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: dark; }
+    input[type="range"] { accent-color: #22c55e; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .shadow-glow { box-shadow: 0 10px 30px -14px rgba(34,197,94,.45); }
+    .card { background: rgba(15,23,42,.55); border: 1px solid rgba(51,65,85,.8); }
+    .cardHeader { background: linear-gradient(90deg, rgba(15,23,42,.9), rgba(15,23,42,.35)); border-bottom: 1px solid rgba(51,65,85,.8); }
+    .btn { border: 1px solid rgba(51,65,85,.9); background: rgba(30,41,59,.55); }
+    .btn:hover { background: rgba(30,41,59,.8); }
+    .btnPrimary { background: rgba(34,197,94,.9); border-color: rgba(34,197,94,.9); color: #052e16; }
+    .btnPrimary:hover { background: rgba(34,197,94,1); }
+    .btnDanger { background: rgba(239,68,68,.92); border-color: rgba(239,68,68,.92); color: #1f0a0a; }
+    .btnDanger:hover { background: rgba(239,68,68,1); }
+    .chip { background: rgba(30,41,59,.7); border: 1px solid rgba(51,65,85,.7); }
+    .sceneActive { background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.55); }
+    .sceneItem { background: rgba(15,23,42,.25); border: 1px solid rgba(51,65,85,.7); }
+    .sceneItem:hover { background: rgba(15,23,42,.55); }
+    .pad { border-radius: 18px; color: white; font-weight: 800; }
+    .padSmall { font-size: 12px; font-weight: 700; }
+    .menu { background: rgba(15,23,42,.96); border: 1px solid rgba(51,65,85,.9); }
+    .kmono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    :focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
+    button, input, select { min-height: 2.25rem; }
+    .ambienceToggle { min-height: 0 !important; height: 20px; width: 40px; padding: 0; line-height: 1; }
+    .ambienceToggleKnob { min-height: 0 !important; height: 16px; width: 16px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+    .dialogBackdrop { background: rgba(2,6,23,.72); }
+    .setupField { margin-top: .75rem; }
+    .setupField:focus { outline: 1px solid rgba(52,211,153,.8); outline-offset: 2px; box-shadow: 0 0 0 2px rgba(52,211,153,.12); }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+  <div id="app" class="min-h-screen"></div>
+
+  <script>
+    // ==============================================================
+    // DnD Soundboard (single-file UI)
+    // - Served by Python FastAPI server
+    // - Fetches games/library/scenes from /api
+    // - Music: Playlist (A)
+    // - Ambience: Layers with per-layer fade (C, no lowpass)
+    // - SFX: Big colored pads with per-pad color picker
+    // Audio Playback:
+    // - Music & Ambience are streamed via <audio> elements and routed
+    //   into WebAudio via createMediaElementSource.
+    // - SFX: AudioBuffer-based, preloaded per scene (low-latency, polyphonic).
+    // ============================================================== 
+
+    const state = {
+      // injected later
+    };
+
+    // ---------------------- Localization ----------------------
+    // Translations are loaded from the external language.json file.
+    let supportedLanguages = ['de', 'en'];
+    let languageLabels = { de: 'Deutsch', en: 'English' };
+    const fallbackTranslations = {
+      de: {
+        language: 'Sprache', english: 'Englisch', german: 'Deutsch',
+        libraryColon: 'Bibliothek: ', gameColon: 'Spiel: ',
+        lanConnected: '● LAN verbunden', lanDisconnected: '● Getrennt',
+        library: 'Bibliothek', game: 'Spiel', scene: 'Szene', scenes: 'Szenen',
+        new: 'Neu', create: 'Erstellen', rename: 'Umbenennen', duplicate: 'Duplizieren',
+        delete: 'Löschen', close: 'Schließen', open: 'Öffnen', save: 'Speichern', cancel: 'Abbrechen',
+        builder: 'Spiel zusammenstellen', closeBuilder: 'Zusammenstellung schließen',
+        music: 'Musik', ambience: 'Ambience', sfx: 'SFX',
+        audioEnable: 'Audio aktivieren', audioActive: 'Audio aktiv', audioLocked: 'Audio gesperrt',
+        newShort: '+ Neu',
+        connected: 'Verbunden', disconnected: 'Getrennt', master: 'MASTER',
+        ready: 'bereit', off: 'aus', playing: 'spielt', loadingShort: 'lädt…', unavailable: 'nicht verfügbar', available: 'bereit', notLoaded: 'nicht geladen',
+        nowPlaying: 'Wird gerade abgespielt', play: 'Wiedergabe', pause: 'Pause', stop: 'Stopp',
+        crossfade: 'Crossfade', loop: 'Loop', title: 'Titel', playlist: 'Playlist',
+        addFromLibrary: 'Aus Bibliothek hinzufügen', librarySearch: 'Bibliothek durchsuchen',
+        chooseAssets: 'Assets für dieses Spiel auswählen',
+        chooseAssetsHint: 'Hier wählst du nur die verfügbaren Titel. Loop, Lautstärke und Wiedergabeoptionen stellst du später in den Szenen ein.',
+        noAssets: 'Keine Assets in diesem Spiel.', loading: 'Wird geladen…',
+        createLibrary: 'Bibliothek erstellen', libraryName: 'Bibliotheksname',
+        libraryNamePlaceholder: 'Bibliotheksname, z. B. Meine Sounds',
+        gameNamePlaceholder: 'Spielname, z. B. Cyberpunk',
+        firstLibrary: 'Erstelle deine erste Bibliothek',
+        firstLibraryHint: 'Gib deiner Bibliothek einen Namen. Die Audio-Ordner werden automatisch angelegt, damit du direkt Titel hinzufügen kannst.',
+        afterCreate: 'Danach kannst du Musik-, Ambience- und SFX-Dateien hinzufügen.',
+        newGroup: '+ Neue Gruppe', editGroup: 'Gruppe bearbeiten', deleteGroup: 'Gruppe löschen', assignGroup: 'Gruppe zuweisen', groupActions: 'Gruppenaktionen',
+        moveUp: 'Nach oben', moveDown: 'Nach unten', fadeStop: 'Fade stoppen', emergencyStop: 'Notstopp'
+      },
+      en: {
+        language: 'Language', english: 'English', german: 'German',
+        libraryColon: 'Library: ', gameColon: 'Game: ',
+        lanConnected: '● LAN connected', lanDisconnected: '● Disconnected',
+        library: 'Library', game: 'Game', scene: 'Scene', scenes: 'Scenes',
+        new: 'New', create: 'Create', rename: 'Rename', duplicate: 'Duplicate',
+        delete: 'Delete', close: 'Close', open: 'Open', save: 'Save', cancel: 'Cancel',
+        builder: 'Build game', closeBuilder: 'Close builder',
+        music: 'Music', ambience: 'Ambience', sfx: 'SFX',
+        audioEnable: 'Enable audio', audioActive: 'Audio active', audioLocked: 'Audio locked',
+        newShort: '+ New',
+        connected: 'Connected', disconnected: 'Disconnected', master: 'MASTER',
+        ready: 'ready', off: 'off', playing: 'playing', loadingShort: 'loading…', unavailable: 'unavailable', available: 'ready', notLoaded: 'not loaded',
+        nowPlaying: 'Now playing', play: 'Play', pause: 'Pause', stop: 'Stop',
+        crossfade: 'Crossfade', loop: 'Loop', title: 'Title', playlist: 'Playlist',
+        addFromLibrary: 'Add from library', librarySearch: 'Search library',
+        chooseAssets: 'Choose assets for this game',
+        chooseAssetsHint: 'Choose the available titles here. Configure looping, volume and playback options later in the scenes.',
+        noAssets: 'No assets in this game.', loading: 'Loading…',
+        createLibrary: 'Create library', libraryName: 'Library name',
+        firstLibrary: 'Create your first library',
+        firstLibraryHint: 'Give your library a name. The audio folders will be created automatically so you can start adding titles.',
+        afterCreate: 'Afterwards you can add Music, Ambience and SFX files.',
+        newGroup: '+ New group', editGroup: 'Edit group', deleteGroup: 'Delete group', assignGroup: 'Assign group', groupActions: 'Group actions',
+        moveUp: 'Move up', moveDown: 'Move down', fadeStop: 'Fade stop', emergencyStop: 'Emergency stop'
+      }
+    };
+    let translations = fallbackTranslations;
+    let translationsReady = false;
+    state.language = (document.documentElement.lang || 'de').toLowerCase().startsWith('en') ? 'en' : 'de';
+    async function loadTranslations() {
+      try {
+        const response = await fetch('/language.json', { cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        supportedLanguages = data.supportedLanguages || supportedLanguages;
+        languageLabels = data.labels || languageLabels;
+        translations = data.translations || fallbackTranslations;
+        if (!supportedLanguages.includes(state.language)) state.language = supportedLanguages[0] || 'de';
+        translationsReady = true;
+        render();
+      } catch (error) {
+        console.error('Sprachdatei konnte nicht geladen werden:', error);
+        render();
+      }
+    }
+    function t(key, vars = {}) {
+      const source = translations[state.language] || translations.translations?.[state.language] || {};
+      const fallback = translations.en || translations.translations?.en || fallbackTranslations.en || {};
+      if (source.translations) Object.assign(source, source.translations);
+      let value = source[key] ?? fallback[key] ?? key;
+      return String(value).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
+    }
+    function setLanguage(language) {
+      if (!supportedLanguages.includes(language) || !translations[language]) return;
+      state.language = language;
+      document.documentElement.lang = language;
+      render();
+    }
+
+    // Admin token (optional): stored in-memory only (no localStorage in this environment).
+    let ADMIN_TOKEN = '';
+
+    async function apiFetch(url, opts={}) {
+      const headers = Object.assign({}, opts.headers || {});
+      if (ADMIN_TOKEN) headers['X-Admin-Token'] = ADMIN_TOKEN;
+      const res = await fetch(url, Object.assign({}, opts, { headers }));
+      const text = await res.text();
+      let json = null;
+      try { json = text ? JSON.parse(text) : null; } catch {}
+      if (!res.ok) {
+        const detail = json && json.detail != null ? json.detail : (json && json.message != null ? json.message : null);
+        const msg = typeof detail === 'object'
+          ? [detail.field, detail.message || detail.code || JSON.stringify(detail)].filter(Boolean).join(': ')
+          : (detail || `${res.status} ${res.statusText}`);
+        throw new Error(String(msg));
+      }
+      return json;
+    }
+
+    const API = {
+      health: () => apiFetch('/api/health'),
+      games: () => apiFetch('/api/games'),
+      createGame: (payload) => apiFetch('/api/games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      library: (gameId, sessionId=null) => apiFetch(`/api/library?game_id=${encodeURIComponent(gameId)}${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ''}`),
+      scenes: (gameId, sessionId=null) => apiFetch(`/api/scenes?game_id=${encodeURIComponent(gameId)}${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ''}`),
+      upsertScene: (scene) => apiFetch('/api/scenes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scene) }),
+      deleteScene: (id) => apiFetch(`/api/scenes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      sessions: (gameId) => apiFetch(`/api/sessions?game_id=${encodeURIComponent(gameId)}`),
+      createSession: (payload) => apiFetch('/api/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      deleteSession: (id) => apiFetch(`/api/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      sessionAssets: (sessionId) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets`),
+      upsertSessionAssets: (sessionId, payload) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      removeSessionAsset: (sessionId, assetId) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' }),
+      renameSession: (sessionId, payload) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+      reorderScene: (sceneId, order) => apiFetch(`/api/scenes/${encodeURIComponent(sceneId)}/order`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) }),
+      deleteScene: (id) => apiFetch(`/api/scenes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      duplicateSession: (sessionId, payload={}) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/duplicate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
+    };
+
+    // ==============================================================
+    // DnD Soundboard (single-file UI)
+    // ... (rest of file keeps using `state` defined below)
+    // ==============================================================
+
+    // ---------------------- App State ----------------------
+    Object.assign(state, {
+      connected: false,
+      games: [],
+      activeGameId: null,
+      sessions: [],
+      activeSessionId: null,
+      sessionAssets: [], // [{asset_id, preload, volume_db, loop, sort_order}]
+      library: null,
+      scenes: [],
+      activeSceneId: null,
+      ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null },
+      audio: {
+        unlocked: false,
+        ctx: null,
+        master: { gain: null, db: -10 },
+        buses: {
+          music: { gain: null, db: -14 },
+          ambience: { gain: null, db: -16 },
+          sfx: { gain: null, db: -6 },
+        },
+        music: {
+          crossfadeSec: 4,
+          node: null,
+          status: 'idle',
+          error: null,
+          armed: false,
+          loopMode: 'off', // off | track | playlist
+          loop: false, // legacy alias for track looping
+        },
+        ambience: {
+          nodes: new Map(),
+          status: new Map(),
+          errors: new Map(),
+        },
+        sfx: {
+          cache: new Map(),
+          loading: new Set(),
+          status: new Map(),
+          errors: new Map(),
+          playing: new Set(),
+          voices: new Map(),
+          allVoices: new Set(),
+        },
+        pendingSaves: new Map(),
+        ducking: { enabled: true, active: false, voiceCount: 0, amountDb: -8, releaseMs: 500, releaseTimer: null }
+      }
+    });
+
+    function captureFocusState() {
+      const active = document.activeElement;
+      if (!active || !['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return null;
+      const stateInfo = {
+        tag: active.tagName,
+        type: active.getAttribute('type') || '',
+        placeholder: active.getAttribute('placeholder') || '',
+        ariaLabel: active.getAttribute('aria-label') || '',
+        focusKey: active.getAttribute('data-focus-key') || '',
+        value: active.value,
+        start: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+        end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
+      };
+      if (active.matches('[data-dialog-input]') && state.ui.dialog) state.ui.dialog.value = active.value;
+      return stateInfo;
+    }
+
+    function restoreFocusState(info) {
+      if (!info) return;
+      const candidates = Array.from(document.querySelectorAll('input, textarea, select'));
+      const target = candidates.find(node =>
+        node.tagName === info.tag &&
+        (node.getAttribute('type') || '') === info.type &&
+        (node.getAttribute('placeholder') || '') === info.placeholder &&
+        (node.getAttribute('aria-label') || '') === info.ariaLabel &&
+        (!info.focusKey || node.getAttribute('data-focus-key') === info.focusKey)
+      );
+      if (!target) return;
+      // Do not restore a stale DOM value for range inputs. Their value is
+      // controlled by the current audio state, and restoring the old value
+      // could make an unrelated render overwrite a slider during interaction.
+      if (target.tagName !== 'SELECT' && target.type !== 'range') target.value = info.value;
+      target.focus({ preventScroll: true });
+      if (info.start != null && typeof target.setSelectionRange === 'function') {
+        try { target.setSelectionRange(info.start, info.end); } catch {}
+      }
+    }
+
+    function toast(msg, kind='info') {
+      state.ui.toast = { msg, kind, t: Date.now() };
+      render();
+      setTimeout(() => { if (state.ui.toast && Date.now() - state.ui.toast.t > 2500) { state.ui.toast = null; render(); } }, 2600);
+    }
+
+    function scheduleSearch(key, value, apply) {
+      const timers = state.ui.searchTimers;
+      clearTimeout(timers.get(key));
+      timers.set(key, setTimeout(() => {
+        timers.delete(key);
+        apply(value);
+        render();
+      }, 220));
+    }
+
+    function openDialog(config) {
+      state.ui.dialog = config;
+      render();
+      setTimeout(() => {
+        const input = document.querySelector('[data-dialog-input]');
+        if (input) {
+          input.focus({ preventScroll: true });
+          if (typeof input.setSelectionRange === 'function') input.setSelectionRange(input.value.length, input.value.length);
+        }
+      }, 0);
+    }
+
+    function closeDialog() {
+      state.ui.dialog = null;
+      render();
+    }
+
+    function renderDialog() {
+      const dialog = state.ui.dialog;
+      if (!dialog) return null;
+      const submit = () => {
+        const input = document.querySelector('[data-dialog-input]');
+        const value = input ? input.value.trim() : '';
+        const color = document.querySelector('[data-dialog-color]')?.value || '';
+        if (dialog.requireValue && !value) return;
+        closeDialog();
+        dialog.onSubmit?.(value, color);
+      };
+      const backdrop = el('div', { class: 'fixed inset-0 z-[70] dialogBackdrop flex items-center justify-center p-4', role: 'presentation', onMouseDown: (e) => { if (e.target === e.currentTarget) closeDialog(); } }, [
+        el('div', { class: 'card rounded-2xl w-full max-w-md p-5 shadow-2xl', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title', onMouseDown: (e) => e.stopPropagation(), onClick: (e) => e.stopPropagation() }, [
+          el('h2', { id: 'dialog-title', class: 'text-lg font-extrabold', text: dialog.title }),
+          dialog.message ? el('p', { class: 'mt-2 text-sm text-slate-300', text: dialog.message }) : null,
+          dialog.select ? el('select', { 'data-dialog-input': '1', class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeDialog(); } }, (dialog.options || []).map(option => el('option', { value: option.value, text: option.label, selected: option.value === dialog.value }))) : null,
+          dialog.input ? el('input', { type: 'text', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', placeholder: dialog.placeholder || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
+          dialog.color ? el('input', { type: 'color', 'data-dialog-color': '1', class: 'mt-4 h-10 w-full rounded-lg bg-slate-950 border border-slate-700', value: dialog.color, onMouseDown: (e) => e.stopPropagation() }) : null,
+          el('div', { class: 'mt-5 flex justify-end gap-2' }, [
+            el('button', { type: 'button', class: 'px-3 py-2 rounded-lg btn text-sm font-semibold', text: t('cancel'), onClick: closeDialog }),
+            el('button', { type: 'button', class: 'px-3 py-2 rounded-lg ' + (dialog.danger ? 'btnDanger' : 'btnPrimary') + ' text-sm font-semibold', text: dialog.confirmText || 'Confirm', onClick: submit })
+          ])
+        ])
+      ]);
+      return backdrop;
+    }
+
+    const SWATCHES = ['#ef4444','#f97316','#eab308','#22c55e','#0ea5e9','#3b82f6','#a855f7','#ec4899','#64748b'];
+
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const el = (tag, attrs={}, kids=[]) => {
+      const n = document.createElement(tag);
+      for (const [k,v] of Object.entries(attrs)) {
+        if (k === 'class') n.className = v;
+        else if (k === 'text') n.textContent = v;
+        else if (k === 'html') n.innerHTML = v;
+        else if (k === 'style' && typeof v === 'object') Object.assign(n.style, v);
+        else if (k.startsWith('on') && typeof v === 'function') n.addEventListener(k.slice(2).toLowerCase(), v);
+        else if (v === true) n.setAttribute(k,'');
+        else if (v !== false && v != null) n.setAttribute(k, v);
+      }
+      for (const c of (Array.isArray(kids) ? kids : [kids])) n.append(c?.nodeType ? c : document.createTextNode(c ?? ''));
+      // Set form values after children exist. Setting `value` as an attribute
+      // before <option> elements are appended does not reliably update the
+      // selected option in native <select> controls.
+      if (Object.prototype.hasOwnProperty.call(attrs, 'value') && 'value' in n) n.value = attrs.value == null ? '' : String(attrs.value);
+      if (Object.prototype.hasOwnProperty.call(attrs, 'checked') && 'checked' in n) n.checked = Boolean(attrs.checked);
+      if (Object.prototype.hasOwnProperty.call(attrs, 'selected') && 'selected' in n) n.selected = Boolean(attrs.selected);
+      return n;
+    };
+
+    const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+    const dbToGain = (db) => Math.pow(10, db/20);
+
+    function setAssetStatus(bucket, assetId, status, error=null) {
+      const target = state.audio[bucket];
+      if (!target?.status) return;
+      target.status.set(assetId, status);
+      if (target.errors) {
+        if (error) target.errors.set(assetId, error);
+        else target.errors.delete(assetId);
+      }
+      render();
+    }
+
+    function scheduleSceneSave(scene, key='scene') {
+      const pending = state.audio.pendingSaves;
+      clearTimeout(pending.get(key));
+      pending.set(key, setTimeout(() => {
+        pending.delete(key);
+        saveScene(scene, { quiet: true });
+      }, 450));
+    }
+
+    function setDucking(active) {
+      const duck = state.audio.ducking;
+      if (!duck.enabled) active = false;
+      if (!state.audio.ctx) {
+        duck.active = active;
+        render();
+        return;
+      }
+      const targetDb = active ? duck.amountDb : 0;
+      for (const bus of ['music', 'ambience']) {
+        const node = state.audio.buses[bus].gain;
+        if (!node) continue;
+        const ctx = state.audio.ctx;
+        node.gain.cancelScheduledValues(ctx.currentTime);
+        node.gain.linearRampToValueAtTime(dbToGain(state.audio.buses[bus].db + targetDb), ctx.currentTime + 0.04);
+      }
+      duck.active = active;
+      render();
+    }
+
+    function beginSfxDucking() {
+      const duck = state.audio.ducking;
+      duck.voiceCount += 1;
+      if (duck.releaseTimer) clearTimeout(duck.releaseTimer);
+      setDucking(true);
+    }
+
+    function endSfxDucking() {
+      const duck = state.audio.ducking;
+      duck.voiceCount = Math.max(0, duck.voiceCount - 1);
+      if (duck.voiceCount > 0) return;
+      if (duck.releaseTimer) clearTimeout(duck.releaseTimer);
+      duck.releaseTimer = setTimeout(() => {
+        duck.releaseTimer = null;
+        setDucking(false);
+      }, duck.releaseMs);
+    }
+
+    function stopAllAudio({ panicStop=false } = {}) {
+      if (!state.audio.ctx) return;
+      const ctx = state.audio.ctx;
+      const fade = panicStop ? 0.01 : 0.5;
+      const current = state.audio.music.node;
+      state.audio.music.node = null;
+      state.audio.music.status = 'idle';
+      if (current) stopAndDisconnect(current, fade);
+      for (const [id, node] of state.audio.ambience.nodes) {
+        stopAndDisconnect(node, fade);
+        state.audio.ambience.status.set(id, 'idle');
+      }
+      state.audio.ambience.nodes.clear();
+      state.audio.ducking.voiceCount = 0;
+      if (state.audio.ducking.releaseTimer) clearTimeout(state.audio.ducking.releaseTimer);
+      state.audio.ducking.releaseTimer = null;
+      if (state.audio.ducking.active) setDucking(false);
+      stopAllSfx({ fadeSec: panicStop ? 0.01 : 0.05 });
+      if (panicStop) {
+        state.audio.master.gain.gain.cancelScheduledValues(ctx.currentTime);
+        state.audio.master.gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        setTimeout(() => setMasterDb(state.audio.master.db), 180);
+      }
+      render();
+    }
+
+    // ---------------------- Legacy state block removed ----------------------
+
+    // ---------------------- Audio Engine ----------------------
+    function ensureAudio() {
+      if (state.audio.ctx) return state.audio.ctx;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const master = ctx.createGain();
+      master.gain.value = dbToGain(state.audio.master.db);
+      master.connect(ctx.destination);
+      state.audio.master.gain = master;
+
+      for (const k of ['music','ambience','sfx']) {
+        const g = ctx.createGain();
+        g.gain.value = dbToGain(state.audio.buses[k].db);
+        g.connect(master);
+        state.audio.buses[k].gain = g;
+      }
+
+      state.audio.ctx = ctx;
+      return ctx;
+    }
+
+    async function unlockAudio() {
+      const ctx = ensureAudio();
+      if (ctx.state !== 'running') await ctx.resume();
+      state.audio.unlocked = true;
+      toast(t('audioActivated'), 'ok');
+      // Resume all audio choices that were made before the WebAudio context
+      // was unlocked. Ambience is scene-driven; armed music starts the playlist.
+      const sc = activeScene();
+      if (sc) {
+        const desired = (sc.ambienceBank || []).filter(layer => layer.on);
+        for (const layer of desired) {
+          setAmbienceLayer(layer.assetId, true, layer.volDb, layer.fadeSec).catch(() => {});
+        }
+        if (state.audio.music.armed && (sc.musicBank || []).length) {
+          playMusic(sc.currentMusic || sc.musicBank[0]);
+        }
+      }
+      // Preload SFX for the currently selected scene
+      preloadSfxForScene(activeScene());
+      // Plus: preload session "hot" SFX pads (if any)
+      preloadHotSessionSfx();
+      render();
+    }
+
+    async function preloadHotSessionSfx() {
+      if (!state.audio.unlocked) return;
+      if (!state.activeSessionId) return;
+      const hotIds = new Set((state.sessionAssets || []).filter(x => (x.preload || 'warm') === 'hot').map(x => x.asset_id));
+      if (hotIds.size === 0) return;
+      const ctx = ensureAudio();
+      const assets = state.library?.SFX || [];
+      for (const id of hotIds) {
+        if (state.audio.sfx.cache.has(id) || state.audio.sfx.loading.has(id)) continue;
+        const asset = assets.find(a => a.id === id);
+        if (asset) preloadSfxAsset(id, asset, ctx).catch(e => console.warn('Hot session SFX task failed', id, e));
+      }
+      // Hot preload is intentionally fire-and-forget: one unsupported codec must
+      // never block the UI or scene activation.
+    }
+
+    function setMasterDb(db) {
+      state.audio.master.db = db;
+      if (state.audio.master.gain) {
+        const ctx = state.audio.ctx;
+        state.audio.master.gain.gain.cancelScheduledValues(ctx.currentTime);
+        state.audio.master.gain.gain.linearRampToValueAtTime(dbToGain(db), ctx.currentTime + 0.03);
+      }
+      render();
+    }
+
+    function setBusDb(bus, db) {
+      state.audio.buses[bus].db = db;
+      const g = state.audio.buses[bus].gain;
+      if (g) {
+        const ctx = state.audio.ctx;
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.linearRampToValueAtTime(dbToGain(db), ctx.currentTime + 0.03);
+      }
+      render();
+    }
+
+    function createRoutedAudioElement(streamUrl) {
+      const audioEl = new Audio();
+      audioEl.src = streamUrl;
+      audioEl.crossOrigin = 'anonymous';
+      audioEl.preload = 'auto';
+      return audioEl;
+    }
+
+    function stopAndDisconnect(node, fadeSec=0.5) {
+      if (!node) return;
+      const ctx = state.audio.ctx;
+      const t0 = ctx.currentTime;
+      try {
+        node.gainNode.gain.cancelScheduledValues(t0);
+        node.gainNode.gain.setValueAtTime(node.gainNode.gain.value, t0);
+        node.gainNode.gain.linearRampToValueAtTime(0.0001, t0 + Math.max(0.05, fadeSec));
+      } catch {}
+      setTimeout(() => {
+        try { node.audioEl.pause(); } catch {}
+        try { node.srcNode.disconnect(); } catch {}
+        try { node.gainNode.disconnect(); } catch {}
+      }, (Math.max(0.05, fadeSec) * 1000) + 80);
+    }
+
+    async function playMusic(assetId) {
+      if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      const ctx = ensureAudio();
+      const asset = (state.library?.Musik || []).find(a => a.id === assetId);
+      if (!asset) {
+        state.audio.music.status = 'unavailable';
+        state.audio.music.error = 'Titel nicht verfügbar';
+        render();
+        return;
+      }
+      state.audio.music.status = 'loading';
+      state.audio.music.error = null;
+      render();
+
+      const crossfade = state.audio.music.crossfadeSec;
+      const t0 = ctx.currentTime;
+
+      const audioEl = createRoutedAudioElement(asset.stream_url);
+      const srcNode = ctx.createMediaElementSource(audioEl);
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0.0001;
+
+      srcNode.connect(gainNode);
+      gainNode.connect(state.audio.buses.music.gain);
+
+      // fade in
+      gainNode.gain.setValueAtTime(0.0001, t0);
+      gainNode.gain.linearRampToValueAtTime(1.0, t0 + Math.max(0.05, crossfade));
+
+      // start
+      try {
+        await audioEl.play();
+        state.audio.music.status = 'playing';
+      } catch (e) {
+        state.audio.music.status = 'unavailable';
+        state.audio.music.error = 'Musik konnte nicht gestartet werden';
+        toast(t('musicStartFailed'), 'warn');
+      }
+
+      // fade out old
+      const prev = state.audio.music.node;
+      audioEl.loop = state.audio.music.loopMode === 'track' || (state.audio.music.loopMode === 'off' && !!state.audio.music.loop);
+      audioEl.addEventListener('ended', () => {
+        // Ignore an old track that finished after a manual switch/crossfade.
+        if (audioEl.loop || state.audio.music.node?.audioEl !== audioEl) return;
+
+        const sc = activeScene();
+        const bank = sc?.musicBank || [];
+        const currentIndex = bank.indexOf(assetId);
+        const nextAssetId = currentIndex >= 0 ? bank[currentIndex + 1] : null;
+
+        if (nextAssetId) {
+          // Playlist mode advances through the bank; after the last title it
+          // wraps to the first one. Track mode is handled by audioEl.loop.
+          playMusic(nextAssetId);
+        } else if (state.audio.music.loopMode === 'playlist' && bank.length) {
+          playMusic(bank[0]);
+        } else {
+          state.audio.music.status = 'idle';
+          state.audio.music.node = null;
+          render();
+        }
+      });
+      state.audio.music.node = { assetId, audioEl, srcNode, gainNode };
+      if (prev) stopAndDisconnect(prev, crossfade);
+
+      // update scene currentMusic
+      const sc = activeScene();
+      if (sc) {
+        sc.currentMusic = assetId;
+        saveScene(sc, { quiet: true });
+      }
+      render();
+    }
+
+    function toggleMusic(assetId) {
+      state.audio.music.armed = true;
+      if (!state.audio.unlocked) {
+        const sc = activeScene();
+        if (sc) sc.currentMusic = assetId;
+        render();
+        toast(t('musicArmed'), 'info');
+        return;
+      }
+      const current = state.audio.music.node;
+      if (current?.assetId === assetId) {
+        if (current.audioEl.paused) {
+          current.audioEl.play().then(() => { state.audio.music.status = 'playing'; render(); }).catch(() => toast(t('musicResumeFailed'), 'warn'));
+        } else {
+          current.audioEl.pause();
+          state.audio.music.status = 'paused';
+          render();
+        }
+        return;
+      }
+      playMusic(assetId);
+    }
+
+    function toggleMusicLoop() {
+      const modes = ['off', 'track', 'playlist'];
+      const currentMode = state.audio.music.loopMode || (state.audio.music.loop ? 'track' : 'off');
+      const nextMode = modes[(modes.indexOf(currentMode) + 1) % modes.length];
+      state.audio.music.loopMode = nextMode;
+      state.audio.music.loop = nextMode === 'track';
+      const current = state.audio.music.node;
+      if (current) current.audioEl.loop = nextMode === 'track';
+      render();
+    }
+
+    function stopMusic() {
+      const prev = state.audio.music.node;
+      state.audio.music.node = null;
+      state.audio.music.status = 'idle';
+      if (prev) stopAndDisconnect(prev, state.audio.music.crossfadeSec);
+      render();
+    }
+
+    async function setAmbienceLayer(assetId, on, volDb, fadeSec) {
+      if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      const ctx = ensureAudio();
+      const asset = (state.library?.Ambience || []).find(a => a.id === assetId);
+      if (!asset) return;
+      // Per-layer boost: keep bus/master controls independent and cap the layer
+      // at +12 dB to avoid uncontrolled gain escalation.
+      const layerGainDb = clamp(Number(volDb) || 0, -40, 12);
+
+      const nodes = state.audio.ambience.nodes;
+      if (on) {
+        if (nodes.has(assetId)) return;
+        const t0 = ctx.currentTime;
+        setAssetStatus('ambience', assetId, 'loading');
+        const audioEl = createRoutedAudioElement(asset.stream_url);
+        audioEl.loop = true;
+        const srcNode = ctx.createMediaElementSource(audioEl);
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 0.0001;
+        srcNode.connect(gainNode);
+        gainNode.connect(state.audio.buses.ambience.gain);
+
+        // fade in to target
+        gainNode.gain.setValueAtTime(0.0001, t0);
+        gainNode.gain.linearRampToValueAtTime(dbToGain(layerGainDb), t0 + Math.max(0.05, fadeSec));
+        try {
+          await audioEl.play();
+          setAssetStatus('ambience', assetId, 'playing');
+        } catch (e) {
+          setAssetStatus('ambience', assetId, 'unavailable', 'Ambience konnte nicht gestartet werden');
+          toast(t('ambienceStartFailed'), 'warn');
+        }
+        nodes.set(assetId, { assetId, audioEl, srcNode, gainNode });
+      } else {
+        const node = nodes.get(assetId);
+        // Mark the layer inactive immediately, even while the fade-out is running.
+        state.audio.ambience.status.set(assetId, 'idle');
+        if (node) {
+          nodes.delete(assetId);
+          stopAndDisconnect(node, fadeSec);
+        }
+      }
+      render();
+    }
+
+    function setAmbienceGain(assetId, volDb) {
+      const node = state.audio.ambience.nodes.get(assetId);
+      if (!node) return;
+      const ctx = state.audio.ctx;
+      node.gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      const layerGainDb = clamp(Number(volDb) || 0, -40, 12);
+      node.gainNode.gain.linearRampToValueAtTime(dbToGain(layerGainDb), ctx.currentTime + 0.08);
+    }
+
+    // ---------------------- SFX: AudioBuffer preload + polyphonic playback ----------------------
+    async function loadSfxAsset(asset, ctx) {
+      const res = await fetch(asset.stream_url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const arr = await res.arrayBuffer();
+      try {
+        const buffer = await ctx.decodeAudioData(arr.slice(0));
+        return { mode: 'buffer', buffer, updatedAt: Date.now() };
+      } catch (decodeError) {
+        // Some browsers can play Opus through HTMLAudioElement but cannot decode it
+        // through WebAudio. Keep a blob URL as a safe, bus-routed fallback.
+        const blob = new Blob([arr], { type: asset.mime_type || 'audio/ogg' });
+        const url = URL.createObjectURL(blob);
+        const probe = new Audio();
+        probe.preload = 'metadata';
+        probe.src = url;
+        if (typeof probe.canPlayType === 'function' && !probe.canPlayType(asset.mime_type || 'audio/ogg')) {
+          URL.revokeObjectURL(url);
+          throw decodeError;
+        }
+        return { mode: 'element', url, updatedAt: Date.now() };
+      }
+    }
+
+    async function preloadSfxAsset(id, asset, ctx) {
+      if (state.audio.sfx.cache.has(id) || state.audio.sfx.loading.has(id)) return;
+      state.audio.sfx.loading.add(id);
+      setAssetStatus('sfx', id, 'loading');
+      try {
+        const loaded = await loadSfxAsset(asset, ctx);
+        state.audio.sfx.cache.set(id, loaded);
+        setAssetStatus('sfx', id, 'ready');
+      } catch (e) {
+        state.audio.sfx.errors.set(id, 'SFX konnte nicht geladen werden');
+        setAssetStatus('sfx', id, 'unavailable', 'SFX konnte nicht geladen werden');
+        console.warn('SFX preload failed', id, e);
+      } finally {
+        state.audio.sfx.loading.delete(id);
+        render();
+      }
+    }
+
+    async function preloadSfxForScene(sc) {
+      if (!sc || !state.audio.unlocked) return;
+      const ctx = ensureAudio();
+      const ids = Array.from(new Set((sc.sfxBank || []).map(p => p.assetId)));
+      const assets = state.library?.SFX || [];
+      // Do not make scene activation wait for audio decoding.
+      for (const id of ids) {
+        const asset = assets.find(a => a.id === id);
+        if (asset) preloadSfxAsset(id, asset, ctx).catch(e => console.warn('SFX task failed', id, e));
+      }
+    }
+
+    function clearSfxVoice(assetId, voice) {
+      if (!voice) return;
+      try { voice.audioEl?.pause(); } catch {}
+      try { voice.src?.stop?.(); } catch {}
+      try { voice.src?.disconnect(); } catch {}
+      try { voice.gain?.disconnect(); } catch {}
+      if (voice.url) {
+        try { URL.revokeObjectURL(voice.url); } catch {}
+      }
+      state.audio.sfx.playing.delete(assetId);
+      state.audio.sfx.allVoices.delete(voice);
+      endSfxDucking();
+    }
+
+    function stopSfx(assetId=null, { fadeSec=0.05 } = {}) {
+      const voices = assetId
+        ? Array.from(state.audio.sfx.allVoices).filter(v => v.assetId === assetId)
+        : Array.from(state.audio.sfx.allVoices);
+      for (const voice of voices) {
+        const id = voice.assetId;
+        if (!voice) continue;
+        const ctx = state.audio.ctx;
+        try {
+          if (voice.gain && ctx) {
+            const t = ctx.currentTime;
+            voice.gain.gain.cancelScheduledValues(t);
+            voice.gain.gain.setValueAtTime(Math.max(0.0001, voice.gain.gain.value), t);
+            voice.gain.gain.linearRampToValueAtTime(0.0001, t + Math.max(0.01, fadeSec));
+          }
+        } catch {}
+        setTimeout(() => {
+          if (state.audio.sfx.voices.get(id) === voice) state.audio.sfx.voices.delete(id);
+          if (state.audio.sfx.allVoices.has(voice)) {
+            clearSfxVoice(id, voice);
+            state.audio.sfx.status.set(id, 'ready');
+            render();
+          }
+        }, Math.max(20, fadeSec * 1000 + 20));
+      }
+      if (!voices.length) render();
+    }
+
+    function stopAllSfx({ fadeSec=0.05 } = {}) {
+      stopSfx(null, { fadeSec });
+    }
+
+    async function stopAllAmbience(sc, { fadeSec=0.05 } = {}) {
+      if (!sc) return;
+      for (const layer of (sc.ambienceBank || [])) layer.on = false;
+      await saveScene(sc, { quiet: true });
+      const activeNodes = Array.from(state.audio.ambience.nodes.values());
+      state.audio.ambience.nodes.clear();
+      for (const node of activeNodes) stopAndDisconnect(node, fadeSec);
+      for (const [assetId] of state.audio.ambience.status) state.audio.ambience.status.set(assetId, 'aus');
+      render();
+    }
+
+    function createSfxVoice(assetId, cached, ctx) {
+      const out = state.audio.buses.sfx.gain;
+      const voice = { assetId, mode: cached.mode, gain: null, src: null, audioEl: null, url: cached.mode === 'element' ? cached.url : null };
+      state.audio.sfx.allVoices.add(voice);
+      if (cached.mode === 'element') {
+        const audioEl = new Audio(cached.url);
+        audioEl.preload = 'auto';
+        audioEl.crossOrigin = 'anonymous';
+        const src = ctx.createMediaElementSource(audioEl);
+        src.connect(out);
+        voice.audioEl = audioEl;
+        voice.src = src;
+        audioEl.onended = () => {
+          if (!state.audio.sfx.allVoices.has(voice)) return;
+          if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
+          clearSfxVoice(assetId, voice);
+          state.audio.sfx.status.set(assetId, 'bereit');
+          render();
+        };
+        audioEl.play().catch(() => {
+          if (!state.audio.sfx.allVoices.has(voice)) return;
+          if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
+          clearSfxVoice(assetId, voice);
+          setAssetStatus('sfx', assetId, 'unavailable', 'SFX konnte nicht gestartet werden');
+        });
+      } else {
+        const t0 = ctx.currentTime;
+        const src = ctx.createBufferSource();
+        const g = ctx.createGain();
+        src.buffer = cached.buffer;
+        g.gain.value = 1.0;
+        src.connect(g);
+        g.connect(out);
+        src.onended = () => {
+          if (!state.audio.sfx.allVoices.has(voice)) return;
+          if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
+          clearSfxVoice(assetId, voice);
+          state.audio.sfx.status.set(assetId, 'bereit');
+          render();
+        };
+        src.start(t0);
+        voice.src = src;
+        voice.gain = g;
+      }
+      return voice;
+    }
+
+    function triggerSfx(assetId) {
+      if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      const ctx = ensureAudio();
+      const cached = state.audio.sfx.cache.get(assetId);
+      if (!cached) {
+        setAssetStatus('sfx', assetId, 'loading');
+        toast(t('sfxLoading'), 'info');
+        preloadSfxForScene(activeScene());
+        return;
+      }
+      const pad = activeScene()?.sfxBank?.find(p => p.assetId === assetId);
+      const mode = pad?.mode || 'poly';
+      const current = state.audio.sfx.voices.get(assetId);
+      if (mode === 'toggle' && current) { stopSfx(assetId); return; }
+      if (mode === 'restart' && current) stopSfx(assetId, { fadeSec: 0.01 });
+      const voice = createSfxVoice(assetId, cached, ctx);
+      state.audio.sfx.voices.set(assetId, voice);
+      state.audio.sfx.playing.add(assetId);
+      beginSfxDucking();
+      setAssetStatus('sfx', assetId, 'playing');
+    }
+
+    function stopAudio() {
+      if (!state.audio.ctx) { toast(t('audioNotActive'), 'warn'); return; }
+      stopAllAudio({ panicStop: false });
+      toast(t('audioFadeStopped'), 'ok');
+    }
+
+    function panic() {
+      if (!state.audio.ctx) { toast(t('audioNotActive'), 'warn'); return; }
+      stopAllAudio({ panicStop: true });
+      toast(t('emergencyStopped'), 'warn');
+    }
+
+    // ---------------------- Data helpers ----------------------
+    function activeScene() {
+      return state.scenes.find(s => s.id === state.activeSceneId) || null;
+    }
+
+    function groupedScenes() {
+      const map = {};
+      for (const s of state.scenes) (map[s.group || 'Allgemein'] ||= []).push(s);
+      for (const k of Object.keys(map)) map[k].sort((a,b) => Number(a.order ?? 0) - Number(b.order ?? 0));
+      return Object.entries(map).sort((a,b) => a[0].localeCompare(b[0]));
+    }
+
+    function sceneGroupColor(group) {
+      const colors = ['#38bdf8', '#a78bfa', '#34d399', '#fbbf24', '#fb7185', '#2dd4bf', '#c084fc', '#f97316'];
+      const explicit = state.scenes.find(s => (s.group || 'Allgemein') === group)?.groupColor;
+      if (explicit) return explicit;
+      let hash = 0;
+      for (const char of String(group || 'Allgemein')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
+      return colors[Math.abs(hash) % colors.length];
+    }
+
+    function groupNames() { return [...new Set(state.scenes.map(s => s.group || 'Allgemein'))].sort((a,b) => a.localeCompare(b)); }
+    function groupScenes() {
+      const en = state.language === 'en';
+      openDialog({ title: en ? 'New group' : 'Neue Gruppe', message: en ? 'Enter a name. A pastel color will be assigned automatically.' : 'Gib einen Namen ein. Eine Pastellfarbe wird automatisch vergeben.', input: true, requireValue: true, placeholder: en ? 'Group name' : 'Gruppenname', confirmText: en ? 'Create' : 'Erstellen', onSubmit: async (name) => {
+        const next = String(name).trim();
+        if (!next || groupNames().includes(next)) return;
+        const color = ['#f9b4ab','#b8d8ba','#b8c0ff','#f7d6a3','#c6def1','#e8c7d8'][groupNames().length % 6];
+        const base = activeScene() || state.scenes[0];
+        if (!base) return;
+        const copy = { ...base, id: `scene-${Math.random().toString(16).slice(2)}`, title: `${next}`, group: next, groupColor: color };
+        const res = await API.upsertScene(copy); state.scenes.push(res.scene); state.activeSceneId = res.scene.id; render();
+      } });
+    }
+    function openGroupEditor(existing) {
+      const en = state.language === 'en';
+      const current = state.scenes.find(s => (s.group || 'Allgemein') === existing);
+      openDialog({ title: en ? 'Edit group' : 'Gruppe bearbeiten', message: en ? 'Change the name or choose a color.' : 'Ändere den Namen oder wähle eine Farbe.', input: true, color: current?.groupColor || sceneGroupColor(existing), requireValue: true, value: existing, placeholder: en ? 'Group name' : 'Gruppenname', confirmText: en ? 'Save' : 'Speichern', onSubmit: async (name, color) => { const next = String(name).trim(); if (!next || next === existing && color === current?.groupColor) return; for (const scene of state.scenes.filter(s => (s.group || 'Allgemein') === existing)) { scene.group = next; scene.groupColor = color; await saveScene(scene, { quiet: true }); } render(); } });
+    }
+    function deleteGroup(name) {
+      const en = state.language === 'en';
+      openDialog({ title: en ? 'Delete group' : 'Gruppe löschen', message: en ? `Delete “${name}” and all scenes in it?` : `„${name}“ und alle Szenen darin löschen?`, danger: true, confirmText: en ? 'Delete' : 'Löschen', onSubmit: async () => { const doomed = state.scenes.filter(s => (s.group || 'Allgemein') === name); for (const scene of doomed) await API.deleteScene(scene.id); state.scenes = state.scenes.filter(s => !doomed.includes(s)); if (doomed.some(s => s.id === state.activeSceneId)) state.activeSceneId = state.scenes[0]?.id || null; render(); } });
+    }
+    function assignSceneGroup(item) {
+      const en = state.language === 'en';
+      const groups = groupNames();
+      openDialog({ title: en ? 'Assign group' : 'Gruppe zuweisen', message: en ? 'Choose an existing group.' : 'Wähle eine vorhandene Gruppe.', select: true, requireValue: true, value: item.group || groups[0] || '', options: groups.map(group => ({ value: group, label: group })), confirmText: en ? 'Save' : 'Speichern', onSubmit: async (group) => { item.group = String(group).trim(); await saveScene(item, { quiet: true }); render(); } });
+    }
+
+    async function persistSceneOrder(ordered) {
+      // The backend stores one global integer order. Build that order from the
+      // sidebar's group order so each group keeps a unique, stable sequence.
+      const groups = groupedScenes().map(([group]) => group);
+      const byGroup = new Map(groups.map(group => [group, []]));
+      for (const scene of ordered) (byGroup.get(scene.group || 'Allgemein') || []).push(scene);
+      const globalOrder = [];
+      for (const group of groups) {
+        const current = byGroup.get(group) || scenesInGroup(group);
+        globalOrder.push(...current);
+      }
+      const updates = await Promise.all(globalOrder.map((scene, index) => API.reorderScene(scene.id, index)));
+      const byId = new Map(updates.map(r => [r.scene.id, r.scene]));
+      state.scenes = state.scenes.map(scene => byId.get(scene.id) || scene);
+      state.ui.draggingSceneId = null;
+      render();
+    }
+
+    function scenesInGroup(group) {
+      return state.scenes.filter(s => (s.group || 'Allgemein') === group)
+        .sort((a,b) => (Number(a.order ?? 0) - Number(b.order ?? 0)) || a.title.localeCompare(b.title));
+    }
+
+    async function reorderSceneWithinGroup(item, direction) {
+      const group = item.group || 'Allgemein';
+      const ordered = scenesInGroup(group);
+      const index = ordered.findIndex(s => s.id === item.id);
+      const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return;
+      const [moved] = ordered.splice(index, 1);
+      ordered.splice(targetIndex, 0, moved);
+      try { await persistSceneOrder(ordered); }
+      catch (err) { state.ui.draggingSceneId = null; toast(`Reorder failed: ${err.message}`, 'warn'); render(); }
+    }
+
+    async function dropSceneOn(targetId) {
+      const draggedId = state.ui.draggingSceneId;
+      if (!draggedId || draggedId === targetId) return;
+      const dragged = state.scenes.find(s => s.id === draggedId);
+      const target = state.scenes.find(s => s.id === targetId);
+      if (!dragged || !target || (dragged.group || 'Allgemein') !== (target.group || 'Allgemein')) return;
+      const ordered = scenesInGroup(target.group || 'Allgemein');
+      const from = ordered.findIndex(s => s.id === draggedId);
+      const to = ordered.findIndex(s => s.id === targetId);
+      if (from < 0 || to < 0) return;
+      const [moved] = ordered.splice(from, 1);
+      ordered.splice(to, 0, moved);
+      try { await persistSceneOrder(ordered); }
+      catch (err) { state.ui.draggingSceneId = null; toast(`Reorder failed: ${err.message}`, 'warn'); render(); }
+    }
+
+    function makeDefaultScene(gameId) {
+      // A newly created game/session starts empty. Assets are added explicitly
+      // by the user in the scene editor or session builder.
+      return {
+        id: `scene-${Math.random().toString(16).slice(2)}`,
+        game_id: gameId,
+        session_id: state.activeSessionId || null,
+        title: t('newScene'),
+        group: t('defaultGroup'),
+        tags: [],
+        musicBank: [],
+        currentMusic: null,
+        ambienceBank: [],
+        sfxBank: [],
+        sfxPadSize: 'large',
+      };
+    }
+
+    async function saveScene(scene, { quiet=false } = {}) {
+      try {
+        const res = await API.upsertScene(scene);
+        const saved = res.scene;
+        // Keep the live scene object while controls are being edited. Replacing
+        // it with a response can reset a just-changed select when another save
+        // is still in flight.
+        const current = state.scenes.find(s => s.id === saved.id);
+        if (current && current !== scene) Object.assign(current, saved);
+        else if (!current) state.scenes = [...state.scenes, saved];
+        if (!quiet) toast(t('sceneSaved'), 'ok');
+      } catch {
+        if (!quiet) toast(t('saveFailed'), 'warn');
+      }
+      // Do not rebuild the DOM from inside a pad menu save. Rebuilding destroys
+      // the native select/input interaction before the browser can finish it.
+      if (!state.ui.openSfxPadMenu) render();
+    }
+
+    async function loadAll() {
+      state.ui.busy = true; render();
+      try {
+        await API.health();
+        state.connected = true;
+        const g = await API.games();
+        state.games = g.games || [];
+        state.activeGameId = state.games[0]?.id || null;
+        if (!state.activeGameId) {
+          stopAllAudio({ panicStop: false });
+          state.games = [];
+          state.activeGameId = null;
+          state.sessions = [];
+          state.activeSessionId = null;
+          state.sessionAssets = [];
+          state.library = null;
+          state.scenes = [];
+          state.activeSceneId = null;
+          state.ui.sessionBuilderOpen = false;
+          state.ui.fullLibrary = null;
+          state.ui.fullLibrarySelected = new Set();
+          state.ui.selectedSessionAssets = new Set();
+          state.ui.busy = false;
+          render();
+          return;
+        }
+        // Sessions
+        const sessRes = await API.sessions(state.activeGameId);
+        state.sessions = sessRes.sessions || [];
+        state.activeSessionId = state.sessions[0]?.id || null;
+        state.sessionAssets = [];
+        if (state.activeSessionId) {
+          const sa = await API.sessionAssets(state.activeSessionId);
+          state.sessionAssets = sa.assets || [];
+        }
+
+        // Library is filtered by active session (if any)
+        const libRes = await API.library(state.activeGameId, state.activeSessionId);
+        state.library = libRes.library;
+
+        // Scenes are filtered by their dedicated session_id field.
+        const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
+        // Loading must never create a scene implicitly. A scene exists only
+        // after the user explicitly creates it for an existing game.
+        state.scenes = (scenesRes.scenes || []).filter(scene =>
+          scene.game_id === state.activeGameId &&
+          (!state.activeSessionId || scene.session_id === state.activeSessionId)
+        );
+        state.activeSceneId = state.scenes[0]?.id || null;
+      } catch (e) {
+        state.connected = false;
+        toast(t('serverUnavailable'), 'warn');
+      } finally {
+        state.ui.busy = false;
+        render();
+      }
+    }
+
+    async function reloadActiveSession() {
+      if (state.activeSessionId) {
+        const sa = await API.sessionAssets(state.activeSessionId);
+        state.sessionAssets = sa.assets || [];
+      } else {
+        state.sessionAssets = [];
+      }
+      const libRes = await API.library(state.activeGameId, state.activeSessionId);
+      state.library = libRes.library;
+      const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
+      state.scenes = scenesRes.scenes || [];
+      state.activeSceneId = state.scenes[0]?.id || null;
+      state.ui.selectedSessionAssets = new Set();
+    }
+
+    // ---------------------- Scene activation (apply audio state) ----------------------
+    async function activateScene(sceneId) {
+      // Clicking the already active scene must be a no-op. In particular, do
+      // not restart the current music track or playlist from the beginning.
+      if (String(sceneId) === String(state.activeSceneId)) return;
+      // Stop the previous scene's music before switching. Music is an explicit
+      // scene action and must never leak into, or appear active in, another scene.
+      if (state.audio.music.node) stopMusic();
+      state.activeSceneId = sceneId;
+      render();
+      const sc = activeScene();
+      if (!sc || !state.audio.unlocked) return;
+
+      // Preload SFX for the new scene, but do not start its music bank
+      // automatically. Music starts only when the user presses Start.
+      preloadSfxForScene(sc);
+
+      // ambience: set desired
+      const desired = new Map(sc.ambienceBank.filter(l => l.on).map(l => [l.assetId, l]));
+      // stop those not desired
+      for (const id of Array.from(state.audio.ambience.nodes.keys())) {
+        if (!desired.has(id)) {
+          const prevLayer = sc.ambienceBank.find(x => x.assetId === id);
+          await setAmbienceLayer(id, false, prevLayer?.volDb ?? -20, prevLayer?.fadeSec ?? 3);
+        }
+      }
+      // start desired
+      for (const [id, l] of desired) {
+        await setAmbienceLayer(id, true, l.volDb, l.fadeSec);
+      }
+    }
+
+    // ---------------------- UI actions: edit banks ----------------------
+    function addToMusicBank(assetId) {
+      const sc = activeScene();
+      if (!sc) return;
+      if (!sc.musicBank.includes(assetId)) sc.musicBank.push(assetId);
+      if (!sc.currentMusic) sc.currentMusic = assetId;
+      saveScene(sc, { quiet: true });
+      render();
+    }
+
+    function removeFromMusicBank(assetId) {
+      const sc = activeScene();
+      if (!sc) return;
+      sc.musicBank = sc.musicBank.filter(id => id !== assetId);
+      if (sc.currentMusic === assetId) sc.currentMusic = sc.musicBank[0] || null;
+      saveScene(sc, { quiet: true });
+      render();
+    }
+
+    function addAmbienceLayer(assetId) {
+      const sc = activeScene();
+      if (!sc) return;
+      if (sc.ambienceBank.some(l => l.assetId === assetId)) return;
+      sc.ambienceBank.push({ assetId, on: false, volDb: -20, fadeSec: 4 });
+      saveScene(sc, { quiet: true });
+      render();
+    }
+
+    function addSfxPad(assetId) {
+      const sc = activeScene();
+      if (!sc) return;
+      if (sc.sfxBank.some(p => p.assetId === assetId)) return;
+      const idx = sc.sfxBank.length;
+      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '' });
+      saveScene(sc, { quiet: true });
+      render();
+    }
+
+    // ---------------------- Render ----------------------
+    function renderSessionBuilder() {
+      if (!state.activeSessionId) {
+        return el('div', { class: 'rounded-xl border border-slate-800 bg-slate-900/30 p-3 text-xs text-slate-400' }, [
+          `Wähle oder erstelle zuerst ein ${t('game')}.`
+        ]);
+      }
+
+      // Der Session Builder dient ausschließlich zur Auswahl von Assets.
+      // Audioeinstellungen wie Loop, Lautstärke und Preload werden in den
+      // Szenen gepflegt und gehören nicht in diese Ansicht.
+      if (!state.ui.fullLibrary) {
+        state.ui.fullLibraryLoading = true;
+        API.library(state.activeGameId, null).then((full) => {
+          state.ui.fullLibrary = full.library || { Musik: [], Ambience: [], SFX: [] };
+          state.ui.fullLibraryLoading = false;
+          render();
+        }).catch(() => {
+          state.ui.fullLibraryLoading = false;
+          toast(t('libraryLoadFailed'), 'warn');
+        });
+        return el('div', { class: 'rounded-2xl border border-slate-800 bg-slate-900/20 p-5 text-sm text-slate-400' }, [
+          t('loading')
+        ]);
+      }
+      return el('div', { class: 'rounded-2xl border border-slate-800 bg-slate-900/20 overflow-hidden' }, [
+        el('div', { class: 'px-3 py-3 border-b border-slate-800' }, [
+          el('div', { class: 'text-sm font-extrabold text-slate-100', text: t('chooseAssets') }),
+          el('div', { class: 'mt-1 text-xs text-slate-400', text: t('chooseAssetsHint') })
+        ]),
+        renderFullLibraryPicker()
+      ]);
+
+      const q = (state.ui.builderQuery || '').trim().toLowerCase();
+      const byId = new Map();
+      for (const b of ['Musik','Ambience','SFX']) {
+        for (const a of (state.library?.[b] || [])) byId.set(a.id, a);
+      }
+
+      const rows = state.sessionAssets || [];
+      const filtered = rows.filter(r => {
+        if (!q) return true;
+        const a = byId.get(r.asset_id);
+        const hay = (a?.filename || '') + ' ' + (a?.rel_path || '') + ' ' + r.asset_id;
+        return hay.toLowerCase().includes(q);
+      });
+
+      const badge = (txt) => el('span', { class: 'px-2 py-0.5 rounded-full text-[10px] border border-slate-700 text-slate-300 kmono', text: txt });
+      const selected = state.ui.selectedSessionAssets || new Set();
+      const totalBytes = rows.reduce((sum, r) => sum + Number(byId.get(r.asset_id)?.size || 0), 0);
+      const bucketCounts = ['Musik','Ambience','SFX'].map(b => `${b}: ${rows.filter(r => byId.get(r.asset_id)?.bucket === b).length}`).join(' · ');
+      const fmtBytes = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+      const reloadSessionAssets = async () => {
+        const sa = await API.sessionAssets(state.activeSessionId);
+        state.sessionAssets = sa.assets || [];
+        state.ui.selectedSessionAssets = new Set();
+        render();
+      };
+      const persistOrder = async () => {
+        const assets = (state.sessionAssets || []).map((r, i) => ({ ...r, sort_order: i }));
+        await API.upsertSessionAssets(state.activeSessionId, { assets });
+        await reloadSessionAssets();
+        toast(t('orderSaved'), 'ok');
+      };
+
+      return el('div', { class: 'rounded-2xl border border-slate-800 bg-slate-900/20 overflow-hidden' }, [
+        el('div', { class: 'px-3 py-2 border-b border-slate-800 flex items-center gap-2 flex-wrap text-xs text-slate-400' }, [
+          el('span', { class: 'font-semibold text-slate-200', text: `${rows.length} Assets` }),
+          el('span', { text: `· ${fmtBytes(totalBytes)}` }),
+          el('span', { text: selected.size ? `· ${selected.size} selected` : '' }),
+          selected.size ? el('button', { class: 'px-2 py-1 rounded btn text-xs font-semibold text-rose-300', text: t('removeSelection'), onClick: async () => {
+            try {
+              for (const id of selected) await API.removeSessionAsset(state.activeSessionId, id);
+              await reloadSessionAssets();
+              const libRes = await API.library(state.activeGameId, state.activeSessionId);
+              state.library = libRes.library;
+            } catch (e) { toast(`Remove failed: ${e.message}`, 'warn'); }
+          }}) : null,
+          el('button', { class: 'px-2 py-1 rounded btn text-xs font-semibold', text: t('clearSelection'), onClick: () => { state.ui.selectedSessionAssets = new Set(); render(); } })
+        ]),
+        el('div', { class: 'px-3 py-2 border-b border-slate-800 flex items-center gap-2' }, [
+          el('input', { class: 'flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', placeholder: t('searchSessionAssets'), 'aria-label': t('searchSessionAssets'), value: state.ui.builderQuery || '', onInput: (e) => { scheduleSearch('builder', e.target.value || '', (value) => { state.ui.builderQuery = value; }); } }),
+
+        ]),
+
+        state.ui.fullLibraryOpen ? renderFullLibraryPicker() : null,
+
+        el('div', { class: 'divide-y divide-slate-800/70' },
+          filtered.length ? filtered.map((r, idx) => {
+            const a = byId.get(r.asset_id);
+            const isSelected = selected.has(r.asset_id);
+            return el('div', { class: 'px-3 py-3 flex items-center gap-2 ' + (isSelected ? 'bg-emerald-950/20' : ''), draggable: true,
+              onDragstart: () => { state.ui.draggingSessionAsset = r.asset_id; },
+              onDragover: (e) => e.preventDefault(),
+              onDrop: async (e) => {
+                e.preventDefault();
+                const from = (state.sessionAssets || []).findIndex(x => x.asset_id === state.ui.draggingSessionAsset);
+                const to = (state.sessionAssets || []).findIndex(x => x.asset_id === r.asset_id);
+                if (from < 0 || to < 0 || from === to) return;
+                const next = [...state.sessionAssets]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved);
+                state.sessionAssets = next; state.ui.draggingSessionAsset = null;
+                try { await persistOrder(); } catch (err) { toast(`Reordering failed: ${err.message}`, 'warn'); }
+              }
+            }, [
+              el('input', { type: 'checkbox', checked: isSelected, class: 'accent-emerald-500 shrink-0', onChange: (e) => { const next = new Set(selected); e.target.checked ? next.add(r.asset_id) : next.delete(r.asset_id); state.ui.selectedSessionAssets = next; render(); } }),
+              el('span', { class: 'text-slate-500 cursor-grab select-none text-sm', text: t('sort'), title: t('dragToSort') }),
+              el('div', { class: 'flex-1 min-w-0' }, [
+                el('div', { class: 'text-sm font-semibold truncate', text: a?.filename || r.asset_id }),
+                el('div', { class: 'text-[11px] text-slate-500 truncate', text: a?.rel_path || '' }),
+                el('div', { class: 'mt-1 flex flex-wrap gap-1' }, [badge(r.preload || 'warm'), badge(`${Number(r.volume_db ?? 0).toFixed(1)} dB`), r.loop ? badge('loop') : null].filter(Boolean))
+              ]),
+
+              // volume
+              el('input', { type: 'range', min: -40, max: 10, step: 1, value: Number(r.volume_db ?? 0), class: 'w-24 accent-emerald-500', onChange: async (e) => {
+                try {
+                  r.volume_db = Number(e.target.value);
+                  await API.upsertSessionAssets(state.activeSessionId, { assets: [{ asset_id: r.asset_id, preload: r.preload, volume_db: r.volume_db, loop: r.loop, sort_order: r.sort_order }] });
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                  toast(t('volumeSet'), 'ok');
+                  render();
+                } catch (err) {
+                  toast(`Update failed: ${err.message}`, 'warn');
+                }
+              }}),
+
+              // loop toggle
+              el('button', { class: 'px-2.5 py-2 rounded-lg btn text-xs font-semibold', text: r.loop ? 'loop ✓' : 'loop', onClick: async () => {
+                try {
+                  r.loop = r.loop ? 0 : 1;
+                  await API.upsertSessionAssets(state.activeSessionId, { assets: [{ asset_id: r.asset_id, preload: r.preload, volume_db: r.volume_db, loop: r.loop, sort_order: r.sort_order }] });
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                  toast(t('loopUpdated'), 'ok');
+                  render();
+                } catch (err) {
+                  toast(`Update failed: ${err.message}`, 'warn');
+                }
+              }}),
+
+              // preload
+              el('select', { class: 'px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', onChange: async (e) => {
+                try {
+                  r.preload = e.target.value;
+                  await API.upsertSessionAssets(state.activeSessionId, { assets: [{ asset_id: r.asset_id, preload: r.preload, volume_db: r.volume_db, loop: r.loop, sort_order: r.sort_order }] });
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                  toast(t('preloadSet'), 'ok');
+                  render();
+                } catch (err) {
+                  toast(`Update failed: ${err.message}`, 'warn');
+                }
+              } }, [
+                el('option', { value: 'hot', text: 'hot', selected: (r.preload||'warm')==='hot' }),
+                el('option', { value: 'warm', text: 'warm', selected: (r.preload||'warm')==='warm' }),
+                el('option', { value: 'cold', text: 'cold', selected: (r.preload||'warm')==='cold' }),
+              ]),
+
+              el('button', { class: 'px-2.5 py-2 rounded-lg btn text-xs font-semibold text-rose-300 hover:text-rose-200', text: t('delete'), onClick: async () => {
+                try {
+                  await API.removeSessionAsset(state.activeSessionId, r.asset_id);
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                  const libRes = await API.library(state.activeGameId, state.activeSessionId);
+                  state.library = libRes.library;
+                  toast(t('removed'), 'ok');
+                  render();
+                } catch (e) {
+                  toast(`Remove failed: ${e.message}`, 'warn');
+                }
+              }})
+            ]);
+          }) : el('div', { class: 'px-3 py-6 text-sm text-slate-500' }, ['Keine Assets in dieser Session.'])
+        )
+      ]);
+    }
+
+    function renderFullLibraryPicker() {
+      const full = state.ui.fullLibrary || { Musik: [], Ambience: [], SFX: [] };
+      const bucket = state.ui.fullLibraryBucket || 'SFX';
+      const q = (state.ui.fullLibraryQuery || '').trim().toLowerCase();
+
+      const inSession = new Set((state.sessionAssets || []).map(x => x.asset_id));
+      const list = (full[bucket] || []).filter(a => {
+        if (inSession.has(a.id)) return false;
+        if (!q) return true;
+        const hay = `${a.filename} ${a.rel_path}`.toLowerCase();
+        return hay.includes(q);
+      });
+
+      const bucketBtn = (b, label) => el('button', {
+        class: 'px-2.5 py-1.5 rounded-lg text-xs font-semibold border ' + (bucket === b ? 'bg-slate-800 border-slate-600 text-slate-100' : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-900'),
+        text: label,
+        onClick: () => { state.ui.fullLibraryBucket = b; render(); }
+      });
+
+      const selectedLibrary = state.ui.fullLibrarySelected || new Set();
+      const toggleLibrarySelection = (id) => {
+        const next = new Set(selectedLibrary);
+        next.has(id) ? next.delete(id) : next.add(id);
+        state.ui.fullLibrarySelected = next;
+        render();
+      };
+      const addSelectedLibraryAssets = async () => {
+        const batch = Array.from(selectedLibrary).map((id, i) => ({ asset_id: id, preload: 'warm', sort_order: (state.sessionAssets?.length || 0) + i }));
+        if (!batch.length) return;
+        try {
+          await API.upsertSessionAssets(state.activeSessionId, { assets: batch });
+          const sa = await API.sessionAssets(state.activeSessionId);
+          state.sessionAssets = sa.assets || [];
+          state.ui.fullLibrarySelected = new Set();
+          const libRes = await API.library(state.activeGameId, state.activeSessionId);
+          state.library = libRes.library;
+          toast(`${batch.length} Assets hinzugefügt`, 'ok');
+          render();
+        } catch (e) { toast(`Add failed: ${e.message}`, 'warn'); }
+      };
+
+      return el('div', { class: 'border-t border-slate-800 bg-slate-950/30' }, [
+        el('div', { class: 'px-3 py-2 flex items-center gap-2 flex-wrap' }, [
+          bucketBtn('Musik', 'Musik'),
+          bucketBtn('Ambience', 'Ambience'),
+          bucketBtn('SFX', 'SFX'),
+          el('input', { class: 'flex-1 min-w-[180px] px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', placeholder: t('searchLibrary'), 'aria-label': t('searchLibrary'), value: state.ui.fullLibraryQuery || '', onInput: (e) => { scheduleSearch('fullLibrary', e.target.value || '', (value) => { state.ui.fullLibraryQuery = value; }); } }),
+          el('span', { class: 'text-[11px] text-slate-400 tabular', 'aria-live': 'polite', text: t('resultsCount', { count: list.length }) }),
+          el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: selectedLibrary.size ? `${selectedLibrary.size} ${t('addSelection')}` : t('addSelection'), onClick: addSelectedLibraryAssets }),
+          el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('selectAllResults'), onClick: () => { state.ui.fullLibrarySelected = new Set(list.slice(0, 200).map(a => a.id)); render(); } })
+        ]),
+        el('div', { class: 'max-h-64 overflow-auto divide-y divide-slate-800/60' },
+          list.slice(0, 250).map((a, idx) => el('div', { class: 'px-3 py-2 flex items-center gap-2 hover:bg-slate-900/40' }, [
+            el('input', { type: 'checkbox', checked: selectedLibrary.has(a.id), class: 'accent-emerald-500', onChange: () => toggleLibrarySelection(a.id) }),
+            el('div', { class: 'flex-1 min-w-0' }, [
+              el('div', { class: 'text-sm font-semibold truncate', text: a.filename }),
+              el('div', { class: 'text-[11px] text-slate-500 truncate', text: a.rel_path })
+            ]),
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: '+', onClick: async () => {
+              try {
+                const sort = (state.sessionAssets?.length || 0) + idx;
+                await API.upsertSessionAssets(state.activeSessionId, { assets: [{ asset_id: a.id, preload: 'warm', sort_order: sort }] });
+                const sa = await API.sessionAssets(state.activeSessionId);
+                state.sessionAssets = sa.assets || [];
+                const libRes = await API.library(state.activeGameId, state.activeSessionId);
+                state.library = libRes.library;
+                toast(t('added'), 'ok');
+                render();
+              } catch (e) {
+                toast(`Add failed: ${e.message}`, 'warn');
+              }
+            }})
+          ]))
+        ),
+        list.length > 250 ? el('div', { class: 'px-3 py-2 text-[11px] text-slate-500' }, [`… ${list.length - 250} weitere (Suche eingrenzen)`]) : null,
+      ]);
+    }
+
+    async function createLibraryFromSetup(name) {
+      const cleanName = String(name ?? '').trim();
+      if (!cleanName) return;
+      state.ui.busy = true;
+      render();
+      try {
+        const res = await API.createGame({ name: cleanName });
+        state.games = [res.game];
+        state.activeGameId = res.game.id;
+        state.sessions = [];
+        state.activeSessionId = null;
+        state.library = null;
+        state.scenes = [];
+        state.activeSceneId = null;
+        state.ui.librarySetupComplete = true;
+        state.ui.setupLibraryName = cleanName;
+        toast(t('libraryCreated'), 'ok');
+      } catch (e) {
+        toast(`Bibliothek konnte nicht erstellt werden: ${e.message}`, 'warn');
+      } finally {
+        state.ui.busy = false;
+        render();
+      }
+    }
+
+    async function createGameFromSetup(name) {
+      const cleanName = String(name ?? '').trim();
+      if (!cleanName || !state.activeGameId) return;
+      state.ui.busy = true;
+      render();
+      try {
+        const res = await API.createSession({ game_id: state.activeGameId, title: cleanName });
+        state.sessions = [res.session];
+        state.activeSessionId = res.session.id;
+        const sa = await API.sessionAssets(state.activeSessionId);
+        state.sessionAssets = sa.assets || [];
+        const libRes = await API.library(state.activeGameId, state.activeSessionId);
+        state.library = libRes.library;
+        state.scenes = [];
+        state.activeSceneId = null;
+        toast(t('gameCreated'), 'ok');
+      } catch (e) {
+        toast(`Spiel konnte nicht erstellt werden: ${e.message}`, 'warn');
+      } finally {
+        state.ui.busy = false;
+        render();
+      }
+    }
+
+    function renderEmptySetup() {
+      const libraryReady = Boolean(state.ui.librarySetupComplete);
+      const makeNameInput = (isLibrary) => {
+        const fieldKey = isLibrary ? 'setup-library-name' : 'setup-game-name';
+        const input = el('input', {
+          id: fieldKey,
+          name: isLibrary ? 'library_name' : 'game_name',
+          type: 'text',
+          required: true,
+          minLength: 1,
+          class: 'setupField w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-700 text-sm',
+          placeholder: t(isLibrary ? 'libraryNamePlaceholder' : 'gameNamePlaceholder'),
+          autocomplete: 'off',
+          spellcheck: false,
+          'aria-label': t(isLibrary ? 'libraryName' : 'gameName'),
+          'data-focus-key': fieldKey,
+          value: isLibrary ? (state.ui.setupLibraryName || '') : (state.ui.setupGameName || ''),
+          onInput: (e) => { if (isLibrary) state.ui.setupLibraryName = e.target.value; else state.ui.setupGameName = e.target.value; }
+        });
+        return input;
+      };
+      const libraryInput = makeNameInput(true);
+      const gameInput = makeNameInput(false);
+      const submitLibrary = () => {
+        const value = libraryInput.value.trim();
+        if (!value) { libraryInput.focus(); return; }
+        createLibraryFromSetup(value);
+      };
+      const submitGame = () => {
+        const value = gameInput.value.trim();
+        if (!value) { gameInput.focus(); return; }
+        createGameFromSetup(value);
+      };
+      libraryInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitLibrary(); } });
+      gameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitGame(); } });
+      setTimeout(() => document.querySelector(`[data-focus-key="${libraryReady ? 'setup-game-name' : 'setup-library-name'}"]`)?.focus({ preventScroll: true }), 0);
+      const libraryStep = el('div', { class: 'card rounded-2xl w-full max-w-lg p-7 shadow-2xl' }, [
+        el('div', { class: 'text-xs uppercase tracking-[0.2em] text-emerald-400 font-bold', text: t('stepOne') }),
+        el('h1', { class: 'mt-3 text-3xl font-extrabold', text: t('createLibrary') }),
+        el('p', { class: 'mt-3 text-slate-300 leading-relaxed', text: t('librarySetupText') }),
+        el('label', { class: 'block mt-6 text-sm font-semibold text-slate-200', text: t('libraryName') }),
+        libraryInput,
+        el('button', { class: 'mt-4 w-full px-4 py-3 rounded-xl btnPrimary font-bold', text: t('createLibrary'), onClick: submitLibrary })
+      ]);
+      const gameStep = el('div', { class: 'card rounded-2xl w-full max-w-lg p-7 shadow-2xl' }, [
+        el('div', { class: 'text-xs uppercase tracking-[0.2em] text-emerald-400 font-bold', text: t('stepTwo') }),
+        el('h1', { class: 'mt-3 text-3xl font-extrabold', text: t('createFirstGame') }),
+        el('p', { class: 'mt-3 text-slate-300 leading-relaxed', text: `Bibliothek: ${state.ui.setupLibraryName || '—'}. Gib deinem ersten Spiel einen Namen.` }),
+        el('label', { class: 'block mt-6 text-sm font-semibold text-slate-200', text: 'Spielname' }),
+        gameInput,
+        el('button', { class: 'mt-4 w-full px-4 py-3 rounded-xl btnPrimary font-bold', text: 'Spiel erstellen', onClick: submitGame })
+      ]);
+      return el('div', { class: 'min-h-screen flex items-center justify-center p-6' }, [libraryReady ? gameStep : libraryStep]);
+    }
+
+    function renderEmptySceneState() {
+      return el('div', { class: 'min-h-[60vh] flex items-center justify-center p-6' }, [
+        el('div', { class: 'card rounded-2xl max-w-md p-7 text-center' }, [
+          el('div', { class: 'text-emerald-400 text-xs font-bold uppercase tracking-[0.2em]', text: t('gameReady') }),
+          el('h1', { class: 'mt-3 text-2xl font-extrabold', text: t('noSceneYet') }),
+          el('p', { class: 'mt-3 text-sm text-slate-400', text: t('createSceneFirst') })
+        ])
+      ]);
+    }
+
+    function render() {
+      const focusState = captureFocusState();
+      const root = $('#app');
+      root.innerHTML = '';
+      const hasActiveGame = Boolean(
+        state.activeGameId && state.games.some(g => g.id === state.activeGameId)
+      );
+      if (!hasActiveGame) {
+        // No game means no scene, no session and no library may be rendered.
+        // This is also the reset state after deleting the last game.
+        state.activeGameId = null;
+        state.sessions = [];
+        state.activeSessionId = null;
+        state.sessionAssets = [];
+        state.library = null;
+        state.scenes = [];
+        state.activeSceneId = null;
+        state.ui.sessionBuilderOpen = false;
+        state.ui.fullLibrary = null;
+        state.ui.fullLibrarySelected = new Set();
+        state.ui.selectedSessionAssets = new Set();
+        root.append(renderEmptySetup());
+        restoreFocusState(focusState);
+        return;
+      }
+      const game = state.games.find(g => g.id === state.activeGameId);
+      const sc = activeScene();
+
+      const header = el('div', { class: 'sticky top-0 z-30 border-b border-slate-800 bg-slate-950/85 backdrop-blur' }, [
+        el('div', { class: 'mx-auto max-w-7xl px-4 py-3 flex flex-col gap-3' }, [
+          el('div', { class: 'md:hidden flex items-center justify-between gap-2' }, [
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-sm font-semibold', text: state.ui.mobileSidebarOpen ? 'Navigation schließen' : 'Navigation öffnen', 'aria-expanded': state.ui.mobileSidebarOpen, 'aria-controls': 'soundboard-sidebar', onClick: () => { state.ui.mobileSidebarOpen = !state.ui.mobileSidebarOpen; render(); } }),
+            el('span', { class: 'text-xs text-slate-400', text: sc?.title || 'Keine Szene aktiv' })
+          ]),
+          el('div', { class: 'flex items-center justify-between gap-3 flex-wrap' }, [
+            el('div', { class: 'flex items-baseline gap-3' }, [
+              el('div', { class: 'text-lg font-extrabold tracking-tight', text: 'DnD Soundboard' }),
+              el('div', { class: 'text-xs text-slate-400' }, [
+                t('libraryColon'),
+                el('span', { class: 'text-slate-200 font-semibold', text: game?.name || '—' }),
+              ]),
+              el('div', { class: 'text-xs ' + (state.connected ? 'text-emerald-400' : 'text-rose-400'), text: state.connected ? t('lanConnected') : t('lanDisconnected') })
+            ]),
+            el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+              el('select', { class: 'px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', value: state.language, 'aria-label': t('language'), onChange: (e) => setLanguage(e.target.value) }, [
+                ...supportedLanguages.map(code => el('option', { value: code, text: languageLabels[code] || code.toUpperCase(), selected: code === state.language }))
+              ]),
+              el('span', { class: 'text-xs font-medium ' + (state.audio.unlocked ? 'text-emerald-400' : 'text-amber-400'), text: state.audio.unlocked ? `● ${t('audioActive')}` : `● ${t('audioLocked')}` }),
+
+              // Admin token (optional): sent as X-Admin-Token
+              el('input', { class: 'w-44 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm kmono', placeholder: 'Admin Token', value: ADMIN_TOKEN, onInput: (e) => { ADMIN_TOKEN = e.target.value || ''; } }),
+
+              !state.audio.unlocked ? el('button', { class: 'px-3 py-2 rounded-lg btnPrimary text-sm font-semibold transition', onClick: unlockAudio, text: t('audioEnable') }) : null,
+
+              el('button', { class: 'px-3 py-2 rounded-lg btn text-sm font-semibold transition', onClick: stopAudio, text: t('fadeStop'), title: t('fadeAudioOut') }),
+              el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-sm font-semibold transition shadow-glow', onClick: panic, text: t('emergencyStop'), title: t('muteAudio') })
+            ])
+          ]),
+
+          el('div', { class: 'flex items-center gap-3 card rounded-lg px-3 py-2' }, [
+            el('span', { class: 'text-xs font-extrabold text-slate-300 w-16', text: 'MASTER' }),
+            el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.master.db, 'data-focus-key': 'master-volume', class: 'flex-1 accent-emerald-500', onInput: (e) => setMasterDb(Number(e.target.value)) }),
+            el('span', { class: 'text-xs text-slate-400 w-14 text-right tabular', text: `${state.audio.master.db} dB` }),
+          ]),
+
+        ])
+      ]);
+
+      const sidebar = el('aside', { id: 'soundboard-sidebar', class: `w-full md:w-80 shrink-0 border-r border-slate-800 bg-slate-950/40 ${state.ui.mobileSidebarOpen ? 'block' : 'hidden md:block'}`, 'aria-label': t('navigationScenes') }, [
+        el('div', { class: 'md:hidden p-3 border-b border-slate-800 flex items-center justify-between' }, [
+          el('span', { class: 'text-sm font-extrabold', text: 'Navigation' }),
+          el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: 'Schließen', 'aria-label': t('closeNavigation'), onClick: () => { state.ui.mobileSidebarOpen = false; render(); } })
+        ]),
+        // Spielauswahl und Zusammenstellung
+        el('div', { class: 'p-4 border-b border-slate-800 space-y-3' }, [
+          el('div', { class: 'flex items-center justify-between gap-2' }, [
+            el('div', { class: 'text-sm font-extrabold', text: t('game') }),
+            el('button', { class: 'px-2.5 py-1.5 rounded-lg btn text-xs font-semibold', text: t('newShort'), onClick: () => {
+              const selectedGameId = state.activeGameId || state.games[0]?.id || '';
+              if (!selectedGameId) {
+                toast(t('noGameSelected'), 'warn');
+                return;
+              }
+              state.activeGameId = String(selectedGameId);
+              openDialog({ title: t('createGame'), message: t('createGameHint'), input: true, requireValue: true, value: `${t('game')} ${new Date().toLocaleDateString(state.language === 'de' ? 'de-DE' : 'en-US')}`, placeholder: t('gameName'), confirmText: t('create'), onSubmit: async (title) => {
+                try {
+                  const normalizedTitle = String(title ?? '').trim();
+                  const normalizedGameId = String(state.activeGameId || state.games[0]?.id || '').trim();
+                  if (!normalizedGameId) throw new Error('No game selected. Reload after adding a game folder.');
+                  const res = await API.createSession({ game_id: normalizedGameId, title: normalizedTitle });
+                  state.sessions.unshift(res.session);
+                  state.activeSessionId = res.session.id;
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                  const libRes = await API.library(state.activeGameId, state.activeSessionId);
+                  state.library = libRes.library;
+                  const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
+                  state.scenes = scenesRes.scenes || [];
+                  state.activeSceneId = state.scenes[0]?.id || null;
+                  toast(t('sessionCreated'), 'ok');
+                  render();
+                } catch (e) {
+                  toast(`Create session failed: ${e.message}`, 'warn');
+                }
+              }});
+            }})
+          ]),
+          el('div', { class: 'flex items-center gap-2 flex-wrap min-w-0' }, [
+            el('select', { class: 'flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', onChange: async (e) => {
+              stopAllAudio({ panicStop: false });
+              state.activeSessionId = e.target.value || null;
+              try {
+                if (state.activeSessionId) {
+                  const sa = await API.sessionAssets(state.activeSessionId);
+                  state.sessionAssets = sa.assets || [];
+                } else {
+                  state.sessionAssets = [];
+                }
+                const libRes = await API.library(state.activeGameId, state.activeSessionId);
+                state.library = libRes.library;
+                const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
+                state.scenes = (scenesRes.scenes || []).filter(scene =>
+                  scene.game_id === state.activeGameId &&
+                  (!state.activeSessionId || scene.session_id === state.activeSessionId)
+                );
+                state.activeSceneId = state.scenes[0]?.id || null;
+                render();
+              } catch (err) {
+                toast(`Switch session failed: ${err.message}`, 'warn');
+              }
+            } }, [
+              ...(state.games.length === 0 ? [el('option', { value: '' , text: '— (kein Spiel)' })] : []),
+              ...(state.sessions || []).map(s => el('option', { value: s.id, text: s.title, selected: s.id === state.activeSessionId }))
+            ]),
+            el('button', { class: 'shrink-0 max-w-full px-3 py-2 rounded-lg btn text-xs font-semibold whitespace-normal text-center', text: state.ui.sessionBuilderOpen ? t('closeBuilder') : t('builder'), onClick: () => { state.ui.sessionBuilderOpen = !state.ui.sessionBuilderOpen; render(); }}),
+            state.activeSessionId ? el('details', { class: 'relative' }, [
+              el('summary', { class: 'list-none cursor-pointer shrink-0 w-12 px-2 py-2 rounded-lg btn text-xs font-semibold text-center whitespace-nowrap overflow-hidden', text: '...', title: t('moreGameActions') }),
+              el('div', { class: 'absolute right-0 top-full mt-2 z-30 min-w-40 rounded-xl menu p-1 space-y-1' }, [
+                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('rename'), onClick: () => {
+                  const current = state.sessions.find(s => s.id === state.activeSessionId);
+                  openDialog({ title: t('renameSession'), message: t('renameSessionHint'), input: true, requireValue: true, value: current?.title || '', placeholder: t('sessionTitle'), confirmText: t('save'), onSubmit: async (title) => {
+                    try { const res = await API.renameSession(state.activeSessionId, { title }); state.sessions = state.sessions.map(s => s.id === state.activeSessionId ? res.session : s); toast('Session renamed', 'ok'); render(); }
+                    catch (e) { toast(`Rename failed: ${e.message}`, 'warn'); }
+                  }});
+                }}),
+                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('duplicate'), onClick: async () => {
+                  try { const res = await API.duplicateSession(state.activeSessionId); state.sessions.unshift(res.session); state.activeSessionId = res.session.id; await reloadActiveSession(); toast('Session duplicated', 'ok'); render(); }
+                  catch (e) { toast(`Duplicate failed: ${e.message}`, 'warn'); }
+                }}),
+                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteSession'), onClick: () => {
+                  const current = state.sessions.find(s => s.id === state.activeSessionId);
+                  openDialog({ title: t('deleteSession'), message: t('deleteSessionConfirm', { title: current?.title || '' }), danger: true, confirmText: t('delete'), onSubmit: async () => {
+                    try { await API.deleteSession(state.activeSessionId); state.sessions = state.sessions.filter(s => s.id !== state.activeSessionId); state.activeSessionId = state.sessions[0]?.id || null; await reloadActiveSession(); toast('Session deleted', 'ok'); render(); }
+                    catch (e) { toast(`Delete failed: ${e.message}`, 'warn'); }
+                  }});
+                }})
+              ])
+            ]) : null,
+          ]),
+
+          state.ui.sessionBuilderOpen ? renderSessionBuilder() : null,
+        ]),
+
+        // Scenes
+        el('div', { class: 'p-4 border-b border-slate-800' }, [
+          el('div', { class: 'flex items-center justify-between gap-2' }, [
+            el('div', { class: 'text-sm font-extrabold', text: t('scene') }),
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('newShort'), onClick: async () => {
+              if (!state.activeGameId || !state.games.some(g => g.id === state.activeGameId)) return;
+              try {
+                const scNew = makeDefaultScene(state.activeGameId);
+                scNew.order = state.scenes.length;
+                const res = await API.upsertScene(scNew);
+                state.scenes.push(res.scene);
+                state.activeSceneId = res.scene.id;
+                toast(t('sceneCreated'), 'ok');
+                render();
+              } catch (e) {
+                toast(`Create scene failed: ${e.message}`, 'warn');
+              }
+            }}),
+          ]),
+          el('div', { class: 'mt-3 flex justify-end' }, [
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('newGroup'), onClick: groupScenes })
+          ])
+        ]),
+        el('div', { class: 'p-2 overflow-visible' },
+          groupedScenes().map(([group, items]) =>
+            el('div', { class: 'mb-3', style: { borderLeft: `3px solid ${sceneGroupColor(group)}`, paddingLeft: '0.35rem' } }, [
+              el('div', { class: 'flex items-center justify-between gap-2 px-2 py-1', style: { color: sceneGroupColor(group) } }, [
+                el('div', { class: 'text-[11px] font-extrabold uppercase tracking-wider', text: group }),
+                el('details', { class: 'relative', onClick: (e) => e.stopPropagation() }, [
+                  el('summary', { class: 'list-none cursor-pointer px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-700', text: '...', title: t('groupActions') }),
+                  el('div', { class: 'absolute right-0 top-full mt-1 z-40 min-w-36 rounded-xl menu p-1 space-y-1' }, [
+                    el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('editGroup'), onClick: () => openGroupEditor(group) }),
+                    el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteGroup'), onClick: () => deleteGroup(group) })
+                  ])
+                ])
+              ]),
+              ...items.map(item => {
+                const active = item.id === state.activeSceneId;
+                return el('div', {
+                  class: `w-full text-left px-3 py-2.5 rounded-xl mb-1.5 transition cursor-pointer ${active ? 'sceneActive' : 'sceneItem'}`,
+                  role: 'button', tabIndex: 0, draggable: true,
+                  onDragstart: (e) => { e.stopPropagation(); state.ui.draggingSceneId = item.id; e.dataTransfer.effectAllowed = 'move'; },
+                  onDragover: (e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; },
+                  onDrop: async (e) => { e.preventDefault(); e.stopPropagation(); await dropSceneOn(item.id); },
+                  onDragend: () => { state.ui.draggingSceneId = null; render(); },
+                  onClick: () => activateScene(item.id),
+                  onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateScene(item.id); } }
+                }, [
+                  el('div', { class: 'flex items-center justify-between gap-2' }, [
+                    el('span', { class: 'font-semibold text-sm truncate', text: item.title }),
+                    el('span', { class: 'flex items-center gap-1 shrink-0' }, [
+                      el('button', { class: 'px-1.5 py-0.5 rounded text-[10px] hover:bg-slate-700', title: t('moveUp'), text: '↑', onClick: async (e) => { e.stopPropagation(); await reorderSceneWithinGroup(item, -1); } }),
+                      el('button', { class: 'px-1.5 py-0.5 rounded text-[10px] hover:bg-slate-700', title: t('moveDown'), text: '↓', onClick: async (e) => { e.stopPropagation(); await reorderSceneWithinGroup(item, 1); } }),
+                      el('details', { class: 'relative', onClick: (e) => e.stopPropagation() }, [
+                        el('summary', { class: 'list-none cursor-pointer px-1.5 py-0.5 rounded text-[11px] hover:bg-slate-700', title: t('moreSceneActions'), text: '...' }),
+                        el('div', { class: 'absolute right-0 top-full mt-1 z-40 min-w-40 rounded-xl menu p-1 space-y-1' }, [
+                          el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('rename'), onClick: () => openDialog({ title: t('renameScene'), message: t('renameSceneHint'), input: true, requireValue: true, value: item.title, placeholder: t('sceneName'), confirmText: t('save'), onSubmit: async (title) => { try { const res = await API.upsertScene({ ...item, title }); state.scenes = state.scenes.map(s => s.id === item.id ? res.scene : s); toast(t('sceneRenamed'), 'ok'); render(); } catch (err) { toast(`Umbenennen fehlgeschlagen: ${err.message}`, 'warn'); } } }) }),
+                          el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('assignGroup'), onClick: () => assignSceneGroup(item) }),
+                          el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('duplicateScene'), onClick: async () => { try { const copy = { ...item, id: `scene-${Math.random().toString(16).slice(2)}`, title: `${item.title} Kopie`, order: Number(item.order ?? state.scenes.length) + 1 }; const res = await API.upsertScene(copy); state.scenes.push(res.scene); state.activeSceneId = res.scene.id; toast(t('sceneDuplicated'), 'ok'); render(); } catch (err) { toast(`Duplizieren fehlgeschlagen: ${err.message}`, 'warn'); } } }),
+                          el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteScene'), onClick: () => openDialog({ title: t('deleteScene'), message: t('deleteSceneConfirm', { title: item.title }), danger: true, confirmText: t('delete'), onSubmit: async () => { try { await API.deleteScene(item.id); state.scenes = state.scenes.filter(s => s.id !== item.id); if (state.activeSceneId === item.id) state.activeSceneId = state.scenes[0]?.id || null; toast(t('sceneDeleted'), 'ok'); render(); } catch (err) { toast(`Löschen fehlgeschlagen: ${err.message}`, 'warn'); } } }) })
+                        ])
+                      ]),
+                      active ? el('span', { class: 'text-emerald-400 text-xs', text: '●' }) : null
+                    ])
+                  ]),
+                  el('div', { class: 'mt-1.5 flex flex-wrap gap-1' },
+                    (item.tags || []).map(t => el('span', { class: 'text-[10px] px-2 py-0.5 rounded-full chip text-slate-400', text: t }))
+                  )
+                ]);
+              })
+            ])
+          )
+        )
+      ]);
+
+      const main = el('main', { class: 'flex-1 p-4 md:p-6 space-y-5', 'aria-label': t('soundboardControls') }, [
+        el('div', {}, [
+          el('h1', { class: 'text-3xl font-extrabold', text: sc?.title || '—' }),
+        ]),
+
+        // AUDIO BANKS
+        sc ? renderMusicCard(sc) : renderEmptySceneState(),
+        sc ? renderAmbienceCard(sc) : null,
+        sc ? renderSfxCard(sc) : null,
+
+        el('div', { class: 'text-xs text-slate-600 leading-relaxed' }, [
+          t('folderStructure'),
+          el('span', { class: 'kmono text-slate-400' , text: `library/${game?.name || '<Bibliothek>'}/(Musik|Ambience|SFX)/...` }),
+          t('serverScanHint')
+        ])
+      ]);
+
+      const toastBar = state.ui.toast ? el('div', { class: 'fixed bottom-4 left-1/2 -translate-x-1/2 z-50', role: state.ui.toast.kind === 'warn' ? 'alert' : 'status', 'aria-live': state.ui.toast.kind === 'warn' ? 'assertive' : 'polite' }, [
+        el('div', { class: `px-4 py-2 rounded-xl border text-sm font-semibold shadow-xl ${
+          state.ui.toast.kind === 'ok' ? 'bg-emerald-950 border-emerald-700 text-emerald-200' :
+          state.ui.toast.kind === 'warn' ? 'bg-amber-950 border-amber-700 text-amber-200' :
+          'bg-slate-900 border-slate-700 text-slate-200'
+        }`, text: state.ui.toast.msg })
+      ]) : null;
+
+      root.append(header);
+      root.append(el('div', { class: 'mx-auto max-w-7xl flex flex-col md:flex-row' }, [sidebar, main]));
+      if (toastBar) root.append(toastBar);
+      const dialog = renderDialog();
+      if (dialog) root.append(dialog);
+
+      restoreFocusState(focusState);
+
+      if (state.ui.busy) {
+        root.append(el('div', { class: 'fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center' }, [
+          el('div', { class: 'card rounded-2xl px-5 py-4' }, [
+            el('div', { class: 'text-sm font-bold', text: 'Lade…' }),
+            el('div', { class: 'text-xs text-slate-400 mt-1', text: 'Games, Library, Szenen' })
+          ])
+        ]));
+      }
+    }
+
+    function renderMusicCard(sc) {
+      const cur = state.audio.music.node;
+      const curName = cur ? (state.library?.Musik || []).find(a => a.id === cur.assetId)?.filename : null;
+
+      return el('section', { class: 'rounded-2xl overflow-hidden card' }, [
+        el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3' }, [
+          el('div', { class: 'flex items-center gap-2' }, [
+            el('span', { class: 'font-extrabold', text: t('music') }),
+            el('span', { class: 'text-xs text-slate-400', text: t('playlistCrossfade') })
+          ]),
+          el('div', { class: 'flex items-center gap-2' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
+            el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.music.db, 'data-focus-key': 'music-bus-volume', class: 'w-28 accent-indigo-400', onInput: (e) => setBusDb('music', Number(e.target.value)) }),
+            el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.music.db} dB` }),
+          ])
+        ]),
+
+        el('div', { class: 'p-4 space-y-3' }, [
+          el('div', { class: 'flex items-center justify-between gap-3 flex-wrap' }, [
+            el('div', {}, [
+              el('div', { class: 'text-[11px] text-slate-400', text: t('nowPlaying') }),
+              el('div', { class: 'text-lg font-semibold', text: curName ? curName : '—' }),
+            ]),
+            el('div', { class: 'flex items-center gap-2' }, [
+              el('span', { class: 'text-[11px] text-slate-400', text: 'Crossfade' }),
+              el('input', { type: 'range', min: 0, max: 20, step: 1, value: state.audio.music.crossfadeSec, class: 'w-40 accent-indigo-400', onInput: (e) => { state.audio.music.crossfadeSec = Number(e.target.value); render(); } }),
+              el('span', { class: 'text-[11px] text-slate-400 w-10 text-right tabular', text: `${state.audio.music.crossfadeSec}s` }),
+              el('button', {
+                class: 'min-h-9 px-2.5 rounded-lg border text-xs font-bold leading-none transition ' +
+                  (state.audio.music.loopMode === 'track'
+                    ? 'bg-amber-500/90 border-amber-300 text-amber-950 shadow-[0_0_0_2px_rgba(251,191,36,.18)]'
+                    : state.audio.music.loopMode === 'playlist'
+                      ? 'bg-emerald-500/90 border-emerald-300 text-emerald-950 shadow-[0_0_0_2px_rgba(16,185,129,.18)]'
+                      : 'btn text-slate-300'),
+                text: state.audio.music.loopMode === 'track' ? '↻ Titel' : state.audio.music.loopMode === 'playlist' ? '↻ Playlist' : '↻ Loop',
+                title: state.audio.music.loopMode === 'track' ? t('loopTrack') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylist') : t('loopOff'),
+                'aria-label': state.audio.music.loopMode === 'track' ? t('loopTrackAria') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylistAria') : t('loopOffAria'),
+                onClick: toggleMusicLoop
+              }),
+              el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopMusic')}`, title: t('stopMusic'), 'aria-label': t('stopMusic'), onClick: stopMusic })
+            ])
+          ]),
+
+          el('div', { class: 'rounded-xl border border-slate-800 divide-y divide-slate-800/70 overflow-hidden' },
+            (sc?.musicBank || []).length ? (sc.musicBank.map((id, index) => {
+              const a = (state.library?.Musik || []).find(x => x.id === id);
+              const playing = state.audio.music.node?.assetId === id;
+              const musicPastels = ['rgba(165,180,252,.72)', 'rgba(196,181,253,.72)', 'rgba(147,197,253,.72)', 'rgba(186,230,253,.72)'];
+              return el('div', { class: 'flex items-center gap-3 px-4 py-3 ' + (playing ? 'bg-indigo-950/40' : 'hover:bg-slate-900/50'), style: { borderLeft: `3px solid ${musicPastels[index % musicPastels.length]}` } }, [
+                el('button', {
+                  class: 'w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-extrabold transition ' +
+                    (playing ? 'bg-indigo-500 text-white' : 'bg-slate-800 hover:bg-indigo-600 text-slate-200'),
+                  title: playing && state.audio.music.status === 'playing' ? t('pauseMusic') : t('playMusic'),
+                  'aria-label': playing && state.audio.music.status === 'playing' ? t('pauseMusic') : t('playMusic'),
+                  onClick: () => toggleMusic(id)
+                }, [
+                  !state.audio.unlocked && state.audio.music.armed && state.audio.music.node?.assetId !== id
+                    ? el('span', { class: 'text-amber-300 text-lg', text: '◈', 'aria-hidden': 'true' })
+                    : playing && state.audio.music.status === 'playing'
+                    ? el('span', { class: 'flex items-center gap-1', 'aria-hidden': 'true' }, [
+                        el('span', { class: 'block w-1 h-4 rounded-sm bg-current' }),
+                        el('span', { class: 'block w-1 h-4 rounded-sm bg-current' })
+                      ])
+                    : el('span', { class: 'block ml-0.5 w-0 h-0 border-y-[7px] border-y-transparent border-l-[10px] border-l-current', 'aria-hidden': 'true' })
+                ]),
+                el('div', { class: 'flex-1 min-w-0' }, [
+                  el('div', { class: 'font-medium truncate', text: a ? a.filename : id }),
+                  el('div', { class: 'text-[11px] text-slate-500', text: a ? `/${a.rel_path}` : '' })
+                ]),
+                playing && state.audio.music.status === 'playing' ? el('span', { class: 'text-[11px] font-semibold ' + (state.audio.music.loopMode === 'track' ? 'text-amber-300' : state.audio.music.loopMode === 'playlist' ? 'text-emerald-300' : 'text-indigo-300'), text: state.audio.music.loopMode === 'track' ? `↻ ${t('title')}` : state.audio.music.loopMode === 'playlist' ? `↻ ${t('playlist')}` : t('playing'), title: state.audio.music.loopMode === 'track' ? t('loopTrackShort') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylistShort') : t('titlePlaying') }) : el('span', { class: 'text-[11px] text-slate-600', text: state.audio.music.status === 'loading' && state.audio.music.node?.assetId === id ? 'lädt…' : '' }),
+                el('button', { class: 'text-slate-600 hover:text-rose-400 text-xs', text: t('delete'), onClick: () => removeFromMusicBank(id) })
+              ]);
+            })) : [el('div', { class: 'px-4 py-4 text-sm text-slate-500', text: 'Keine Titel in der Playlist.' })]
+          ),
+
+          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: t('addFromLibraryShort') }),
+            ...((state.library?.Musik || []).filter(m => !(sc?.musicBank || []).includes(m.id)).slice(0, 8).map(m =>
+              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${m.filename}`, onClick: () => addToMusicBank(m.id) })
+            )),
+            ((state.library?.Musik || []).length > 8) ? el('span', { class: 'text-[11px] text-slate-600', text: '…' }) : null
+          ])
+        ])
+      ]);
+    }
+
+    function renderAmbienceCard(sc) {
+      const layers = sc?.ambienceBank || [];
+      return el('section', { class: 'rounded-2xl overflow-hidden card' }, [
+        el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3' }, [
+          el('div', { class: 'flex items-center gap-2' }, [
+            el('span', { class: 'font-extrabold', text: t('ambience') }),
+            el('span', { class: 'text-xs text-slate-400', text: t('layerDescription') })
+          ]),
+          el('div', { class: 'flex items-center gap-2' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
+            el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.ambience.db, 'data-focus-key': 'ambience-bus-volume', class: 'w-28 accent-teal-400', onInput: (e) => setBusDb('ambience', Number(e.target.value)) }),
+            el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.ambience.db} dB` }),
+            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopAmbienceButton')}`, title: t('stopAmbienceTooltip'), 'aria-label': t('stopAmbienceTooltip'), onClick: () => stopAllAmbience(sc) }),
+          ])
+        ]),
+        el('div', { class: 'p-4 space-y-3' }, [
+          ...layers.map(layer => {
+            const a = (state.library?.Ambience || []).find(x => x.id === layer.assetId);
+            const on = !!layer.on;
+            const layerStatus = state.audio.ambience.status.get(layer.assetId) || (on ? 'ready' : 'off');
+            const layerStatusText = layerStatus === 'loading' ? t('loadingShort') : layerStatus === 'playing' ? t('playing') : layerStatus === 'unavailable' ? t('unavailable') : on ? t('ready') : t('off');
+            const ambiencePastels = ['rgba(153,246,228,.72)', 'rgba(167,243,208,.72)', 'rgba(254,215,170,.72)', 'rgba(186,230,253,.72)'];
+            const ambienceIndex = layers.findIndex(item => item.assetId === layer.assetId);
+            return el('div', { class: 'rounded-xl border p-3.5 transition ' + (on ? 'border-teal-600/50 bg-teal-950/20' : 'border-slate-800 bg-slate-900/30'), style: { borderLeft: `3px solid ${ambiencePastels[ambienceIndex % ambiencePastels.length]}` } }, [
+              el('div', { class: 'flex items-center justify-between gap-3' }, [
+                el('div', { class: 'flex items-center gap-3' }, [
+                  // toggle
+                  el('button', {
+                    class: 'ambienceToggle relative w-10 h-5 rounded-full transition ' + (on ? 'bg-teal-500' : 'bg-slate-700'),
+                    onClick: async () => {
+                      layer.on = !layer.on;
+                      await saveScene(sc, { quiet: true });
+                      await setAmbienceLayer(layer.assetId, layer.on, layer.volDb, layer.fadeSec);
+                    }
+                  }, [
+                    el('span', { class: 'ambienceToggleKnob absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ' + (on ? 'translate-x-5' : '') })
+                  ]),
+                  el('div', {}, [
+                    el('div', { class: 'font-semibold', text: a ? a.filename : layer.assetId }),
+                    el('div', { class: 'text-[11px] text-slate-500', text: a ? `/${a.rel_path}` : '' }),
+                  ])
+                ]),
+                el('span', { class: 'text-[11px] font-semibold ' + (layerStatus === 'unavailable' ? 'text-rose-300' : layerStatus === 'playing' ? 'text-teal-300' : 'text-slate-500'), text: layerStatusText })
+              ]),
+
+              el('div', { class: 'mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2' }, [
+                el('div', { class: 'flex items-center gap-2' }, [
+                  el('span', { class: 'text-[11px] text-slate-400 w-14', text: t('volumeShort') }),
+                  el('input', { type: 'range', min: -40, max: 12, step: 1, value: layer.volDb, class: 'flex-1 accent-teal-400', onInput: (e) => {
+                    layer.volDb = Number(e.target.value);
+                    if (layer.on) setAmbienceGain(layer.assetId, layer.volDb);
+                    scheduleSceneSave(sc, `ambience:${layer.assetId}`);
+                    render();
+                  } }),
+                  el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${layer.volDb} dB` })
+                ]),
+                el('div', { class: 'flex items-center gap-2' }, [
+                  el('span', { class: 'text-[11px] text-slate-400 w-14', text: t('fade') }),
+                  el('input', { type: 'range', min: 0, max: 20, step: 0.5, value: layer.fadeSec, class: 'flex-1 accent-amber-400', onInput: (e) => { layer.fadeSec = Number(e.target.value); render(); }, onChange: async () => { await saveScene(sc, { quiet: true }); } }),
+                  el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${layer.fadeSec}s` })
+                ])
+              ])
+            ]);
+          }),
+
+          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: t('addLayerShort') }),
+            ...((state.library?.Ambience || []).filter(a => !layers.some(l => l.assetId === a.id)).slice(0,10).map(a =>
+              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${a.filename}`, onClick: () => { addAmbienceLayer(a.id); } })
+            ))
+          ])
+        ])
+      ]);
+    }
+
+    function renderSfxCard(sc) {
+      const pads = sc?.sfxBank || [];
+      const validSizes = ['small', 'medium', 'large'];
+      const bankSize = validSizes.includes(sc?.sfxPadSize) ? sc.sfxPadSize : 'large';
+      const gridMin = { small: 112, medium: 168, large: 236 }[bankSize];
+      if (sc && sc.sfxPadSize !== bankSize) {
+        sc.sfxPadSize = bankSize;
+        scheduleSceneSave(sc, 'sfx-pad-size');
+      }
+      return el('section', { class: 'rounded-2xl card overflow-visible' }, [
+        el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3 rounded-t-2xl' }, [
+          el('div', { class: 'flex items-center gap-2' }, [
+            el('span', { class: 'font-extrabold', text: t('sfx') })
+          ]),
+          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: t('padSize') }),
+            el('select', {
+              class: 'px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs',
+              value: bankSize,
+              'data-focus-key': 'sfx-bank-size',
+              'aria-label': t('padSize'),
+              onChange: (e) => {
+                const nextSize = validSizes.includes(e.target.value) ? e.target.value : 'large';
+                sc.sfxPadSize = nextSize;
+                scheduleSceneSave(sc, 'sfx-pad-size');
+                render();
+              }
+            }, [
+              el('option', { value: 'small', text: state.language === 'en' ? 'Small' : 'Klein' }),
+              el('option', { value: 'medium', text: state.language === 'en' ? 'Medium' : 'Mittel' }),
+              el('option', { value: 'large', text: state.language === 'en' ? 'Large' : 'Groß' })
+            ]),
+            el('span', { class: 'text-[11px] text-slate-400 ml-1', text: 'Bus' }),
+            el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.sfx.db, class: 'w-28 accent-rose-400', onInput: (e) => setBusDb('sfx', Number(e.target.value)) }),
+            el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.sfx.db} dB` }),
+            el('details', { class: 'relative' }, [
+              el('summary', { class: 'list-none cursor-pointer px-3 py-2 rounded-lg btn text-xs font-semibold', text: '...', title: t('moreSfxSettings') }),
+              el('div', { class: 'absolute right-0 top-full mt-2 z-40 min-w-64 rounded-xl menu p-3 space-y-3' }, [
+                el('div', { class: 'text-xs font-extrabold text-slate-200', text: t('sfxDucking') }),
+                el('button', { class: 'w-full px-2.5 py-1.5 rounded-lg btn text-xs font-semibold text-left', text: state.audio.ducking.enabled ? (state.language === 'en' ? 'Ducking: On' : 'Ducking: Aktiv') : (state.language === 'en' ? 'Ducking: Off' : 'Ducking: Aus'), onClick: () => { state.audio.ducking.enabled = !state.audio.ducking.enabled; if (!state.audio.ducking.enabled) { state.audio.ducking.voiceCount = 0; if (state.audio.ducking.releaseTimer) clearTimeout(state.audio.ducking.releaseTimer); state.audio.ducking.releaseTimer = null; setDucking(false); } render(); } }),
+                el('label', { class: 'block text-[11px] text-slate-400' }, [
+                  t('duckingAmount') + ' ', el('span', { class: 'float-right tabular', text: `${state.audio.ducking.amountDb} dB` }),
+                  el('input', { type: 'range', min: -24, max: 0, step: 1, value: state.audio.ducking.amountDb, class: 'w-full accent-amber-400', onInput: (e) => { state.audio.ducking.amountDb = Number(e.target.value); if (state.audio.ducking.active) setDucking(true); else render(); } })
+                ]),
+                el('label', { class: 'block text-[11px] text-slate-400' }, [
+                  t('release') + ' ', el('span', { class: 'float-right tabular', text: `${(state.audio.ducking.releaseMs / 1000).toFixed(2)}s` }),
+                  el('input', { type: 'range', min: 0, max: 2000, step: 50, value: state.audio.ducking.releaseMs, class: 'w-full accent-amber-400', onInput: (e) => { state.audio.ducking.releaseMs = Number(e.target.value); render(); } })
+                ])
+              ])
+            ]),
+            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopSfxButton')}`, title: t('stopSfx'), onClick: () => stopAllSfx({ fadeSec: 0.05 }) })
+          ])
+        ]),
+        el('div', { class: 'p-4 space-y-4' }, [
+          el('div', { class: 'grid gap-3 items-start', style: { gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))` } }, pads.map(p => renderPad(sc, p))),
+          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+            el('span', { class: 'text-[11px] text-slate-400', text: t('addFromLibraryShort') }),
+            ...((state.library?.SFX || []).filter(a => !pads.some(p => p.assetId === a.id)).slice(0,10).map(a =>
+              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${a.filename}`, onClick: () => addSfxPad(a.id) })
+            ))
+          ]),
+          el('div', { class: 'text-[11px] text-slate-500' }, [
+            t('sfxPreload') + ': ',
+            el('span', { class: 'kmono text-slate-400', text: `${state.audio.sfx.cache.size} ${t('loaded')}` }),
+            state.audio.sfx.loading.size ? el('span', { class: 'text-slate-500', text: ` · ${state.audio.sfx.loading.size} lädt…` }) : el('span', { class: 'text-slate-600', text: ` · ${t('available')}` })
+          ])
+        ])
+      ]);
+    }
+
+    function renderPad(sc, pad) {
+      const a = (state.library?.SFX || []).find(x => x.id === pad.assetId);
+      const name = pad.label?.trim() || (a ? a.filename.replace(/\.[^.]+$/, '') : pad.assetId);
+      const padStatus = state.audio.sfx.status.get(pad.assetId) || (state.audio.sfx.cache.has(pad.assetId) ? 'ready' : 'notLoaded');
+      const padStatusText = {
+        loading: t('loadingShort'),
+        playing: t('playing'),
+        unavailable: t('unavailable'),
+        ready: t('ready'),
+        notLoaded: t('notLoaded'),
+      }[padStatus] || padStatus;
+      const modeInfo = {
+        poly: { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') },
+        toggle: { icon: '◉', label: t('toggle'), color: '#34d399', description: t('toggleHint') },
+        restart: { icon: '↻', label: t('restart'), color: '#fb7185', description: t('restartHint') },
+      }[pad.mode] || { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') };
+      const isSmallPad = sc?.sfxPadSize === 'small';
+      // Size is controlled once per bank in renderSfxCard. The pad itself fills
+      // its grid cell and stays square at every viewport width.
+      const wrap = el('div', { class: 'relative group w-full aspect-square min-w-0' }, []);
+      const btn = el('button', {
+        class: 'w-full h-full pad flex flex-col items-center justify-center gap-1 shadow-lg active:scale-[.98] transition select-none',
+        style: {
+          background: `linear-gradient(160deg, ${pad.color}, ${pad.color}cc)`,
+          boxShadow: `0 10px 26px -10px ${pad.color}88`,
+        },
+        onClick: () => triggerSfx(pad.assetId)
+      }, isSmallPad ? [
+        el('div', {
+          class: 'text-3xl leading-none font-black drop-shadow',
+          text: String(pad.key || '').toUpperCase() || '—',
+          title: `${name} · ${modeInfo.description}`,
+          'aria-label': `${name}, Shortkey ${String(pad.key || '').toUpperCase() || 'nicht belegt'}, Modus ${modeInfo.label}`
+        })
+      ] : [
+        el('div', { class: 'text-base leading-tight px-2 text-center drop-shadow', text: name }),
+        el('div', {
+          class: 'padSmall flex items-center gap-1.5 rounded px-2 py-1 bg-black/35 border',
+          style: { color: modeInfo.color, borderColor: `${modeInfo.color}99` },
+          title: modeInfo.description,
+          'aria-label': `Pad-Modus: ${modeInfo.label}`
+        }, [
+          el('span', { class: 'text-base leading-none', text: modeInfo.icon, 'aria-hidden': 'true' }),
+          el('span', { text: modeInfo.label })
+        ]),
+        el('div', { class: 'padSmall opacity-85 bg-black/25 rounded px-1.5 py-0.5', text: padStatusText }),
+        el('div', { class: 'padSmall opacity-85', text: String(pad.key || '').toUpperCase() || '—' })
+      ]);
+      const menuBtn = el('button', {
+        class: 'absolute top-2 right-2 z-30 w-7 h-7 min-h-0 p-0 rounded-full bg-black/70 hover:bg-black/90 text-white text-[10px] leading-none opacity-100 transition flex items-center justify-center shadow-md',
+        text: '⋯',
+        title: 'Pad-Einstellungen',
+        'aria-label': 'Pad-Einstellungen',
+        onClick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          state.ui.openSfxPadMenu = state.ui.openSfxPadMenu === pad.assetId ? null : pad.assetId;
+          render();
+        }
+      });
+      wrap.append(btn, menuBtn);
+      if (state.ui.openSfxPadMenu === pad.assetId) wrap.append(renderPadMenu(sc, pad));
+      return wrap;
+    }
+
+    function renderPadMenu(sc, pad) {
+      const menu = el('div', { class: 'absolute z-50 top-11 right-2 p-2 rounded-xl menu shadow-xl w-44 max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto', 'data-menu': '1' }, [
+        el('div', { class: 'text-[11px] text-slate-400 mb-1.5 px-0.5', text: t('color') }),
+        el('div', { class: 'grid grid-cols-6 gap-1.5 mb-2' }, SWATCHES.map(c =>
+          el('button', {
+            class: 'w-6 h-6 rounded-full border-2',
+            style: { background: c, borderColor: c === pad.color ? '#fff' : 'transparent' },
+            onClick: (e) => {
+              e.stopPropagation();
+              pad.color = c;
+              state.ui.openSfxPadMenu = pad.assetId;
+              scheduleSceneSave(sc, `color:${pad.assetId}`);
+              render();
+            }
+          })
+        )),
+        el('div', { class: 'text-[11px] text-slate-400 mb-1.5 px-0.5', text: t('padName') }),
+        el('input', {
+          class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs',
+          value: pad.label || '',
+          placeholder: t('padNamePlaceholder'),
+          maxlength: 80,
+          onClick: (e) => e.stopPropagation(),
+          onInput: (e) => {
+            pad.label = e.target.value;
+            state.ui.openSfxPadMenu = pad.assetId;
+            scheduleSceneSave(sc, `label:${pad.assetId}`);
+          }
+        }),
+        el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('clickBehavior') }),
+        el('select', {
+          class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs',
+          value: pad.mode || 'poly',
+          'data-focus-key': `sfx-pad-mode:${pad.assetId}`,
+          onChange: (e) => {
+            pad.mode = e.target.value;
+            state.ui.openSfxPadMenu = pad.assetId;
+            scheduleSceneSave(sc, `mode:${pad.assetId}`);
+            render();
+          }
+        }, [
+          el('option', { value: 'poly', text: t('poly') }),
+          el('option', { value: 'toggle', text: t('toggle') }),
+          el('option', { value: 'restart', text: t('restart') })
+        ]),
+        el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('hotkey') }),
+        el('input', {
+          class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm kmono',
+          value: pad.key || '',
+          maxlength: 1,
+          onClick: (e) => e.stopPropagation(),
+          onInput: async (e) => {
+            const nextKey = (e.target.value || '').slice(0,1).toLowerCase();
+            const conflict = (sc.sfxBank || []).find(other => other !== pad && (other.key || '').toLowerCase() === nextKey);
+            if (nextKey && conflict) {
+              e.target.value = pad.key || '';
+              toast(`Hotkey „${nextKey.toUpperCase()}“ ist bereits vergeben.`, 'warn');
+              return;
+            }
+            pad.key = nextKey;
+            state.ui.openSfxPadMenu = pad.assetId;
+            scheduleSceneSave(sc, `hotkey:${pad.assetId}`);
+          }
+        }),
+        el('button', {
+          class: 'mt-2 w-full text-xs text-rose-300 hover:text-rose-200 text-left px-0.5',
+          text: t('removePad'),
+          onClick: async (e) => {
+            e.stopPropagation();
+            sc.sfxBank = sc.sfxBank.filter(p => p.assetId !== pad.assetId);
+            await saveScene(sc, { quiet: true });
+            render();
+          }
+        })
+      ]);
+
+      // Keep menu interactions inside the menu. The menu is rendered from
+      // state.ui.openSfxPadMenu, so focus and select changes survive rerenders.
+      menu.addEventListener('click', (e) => e.stopPropagation());
+      return menu;
+    }
+
+    // ---------------------- Keyboard hotkeys ----------------------
+    window.addEventListener('keydown', (e) => {
+      const sc = activeScene();
+      if (!sc) return;
+      const k = (e.key || '').toLowerCase();
+      if (k === ' ') {
+        e.preventDefault();
+        panic();
+        return;
+      }
+      const pad = (sc.sfxBank || []).find(p => (p.key || '').toLowerCase() === k);
+      if (pad) {
+        e.preventDefault();
+        triggerSfx(pad.assetId);
+      }
+    });
+
+    // ---------------------- Boot ----------------------
+    (async () => {
+      await loadTranslations();
+      await loadAll();
+      render();
+    })();
+  </script>
+</body>
+</html>
