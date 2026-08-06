@@ -37,7 +37,6 @@ Version **0.2.0** turns the DnD Soundboard into a flexible control center for li
 ```text
 .
 ├── soundboard-server.py   # FastAPI application and API server
-├── index.html             # Single-file browser UI
 ├── locale/                # One JSON file per language
 │   ├── de.json            # German translations
 │   └── en.json            # English translations
@@ -45,10 +44,10 @@ Version **0.2.0** turns the DnD Soundboard into a flexible control center for li
 ├── requirements.txt       # Python runtime dependencies
 ├── library/               # Local audio libraries (keep out of Git)
 ├── ui-dist/               # Served UI directory in the default configuration
+    └── index.html         # Single-file browser UI
 ├── logs/                  # Optional rotating server logs
-└── docs/
-    ├── GETTING_STARTED.md
-    └── INITIAL_COMMIT_MESSAGE.txt
+├── GETTING_STARTED.md
+└── INITIAL_COMMIT_MESSAGE.txt
 ```
 
 ## Quick start
