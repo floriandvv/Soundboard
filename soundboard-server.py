@@ -156,6 +156,7 @@ def init_db(db_path: Path) -> None:
           session_id TEXT,
           title TEXT NOT NULL,
           scene_group TEXT NOT NULL,
+          group_color TEXT,
           tags_json TEXT NOT NULL,
           music_bank_json TEXT NOT NULL,
           current_music TEXT,
@@ -164,6 +165,15 @@ def init_db(db_path: Path) -> None:
           scene_order INTEGER NOT NULL DEFAULT 0,
           updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
           FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL
+        );
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
         );
         """
     )
@@ -183,10 +193,14 @@ def init_db(db_path: Path) -> None:
         """
     )
 
-    try:
-        conn.execute("ALTER TABLE scenes ADD COLUMN scene_order INTEGER NOT NULL DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
+    for column_sql in (
+        "ALTER TABLE scenes ADD COLUMN scene_order INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE scenes ADD COLUMN group_color TEXT",
+    ):
+        try:
+            conn.execute(column_sql)
+        except sqlite3.OperationalError:
+            pass
     # Normalize legacy scenes that all received the old default order of 0.
     legacy = conn.execute("SELECT id FROM scenes ORDER BY rowid").fetchall()
     if legacy:
@@ -313,6 +327,35 @@ def scan_assets(games_dir: Path) -> Tuple[List[Dict[str, Any]], List[Asset]]:
     return games, assets
 
 
+def discover_locales(ui_dir: Path) -> Dict[str, Dict[str, Any]]:
+    """Load one language JSON file per language from a locale directory.
+
+    The preferred locations are <ui_dir>/locale and the locale directory next
+    to this server script. This supports both the source layout and a copied
+    UI distribution without requiring a fixed working directory.
+    """
+    script_dir = Path(__file__).resolve().parent
+    search_dirs = [ui_dir / "locale", script_dir / "locale"]
+
+    locales: Dict[str, Dict[str, Any]] = {}
+    for directory in search_dirs:
+        if not directory.exists():
+            continue
+        for path in sorted(directory.glob("*.json")):
+            code = path.stem.strip().lower()
+            if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z]{2,4})?", code):
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                translations = data.get("translations", data)
+                label = data.get("label", code)
+                if isinstance(translations, dict) and isinstance(label, str):
+                    locales[code] = {"label": label, "translations": translations}
+            except (OSError, json.JSONDecodeError) as exc:
+                logging.getLogger("soundboard").warning("locale_load_failed file=%s error=%s", path, exc)
+    return locales
+
+
 def make_app(
     games_dir: Path,
     db_path: Path,
@@ -325,9 +368,12 @@ def make_app(
 ) -> FastAPI:
     init_db(db_path)
     language = language.strip().lower()
-    supported_languages = {"en", "de"}
+    locales = discover_locales(ui_dir)
+    supported_languages = set(locales)
+    if not supported_languages:
+        raise ValueError("No locale files found in the locale directory")
     if language not in supported_languages:
-        raise ValueError(f"SOUNDBOARD_LANGUAGE must be one of: {', '.join(sorted(supported_languages))}")
+        language = "en" if "en" in supported_languages else sorted(supported_languages)[0]
     logger = configure_logging(log_path)
     limiter = SlidingWindowRateLimiter(limit=max(1, write_rate_limit), window_seconds=60)
 
@@ -377,6 +423,32 @@ def make_app(
             "assets": len(assets),
             "scan_cache_age_seconds": round(max(0.0, time.time() - _asset_cache["ts"]), 3),
         }
+
+    @app.get("/api/settings/audio")
+    def get_audio_settings() -> Dict[str, Any]:
+        conn = db_connect(db_path)
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", ("master_db",)).fetchone()
+        conn.close()
+        try:
+            master_db = float(row["value"]) if row else -10.0
+        except (TypeError, ValueError):
+            master_db = -10.0
+        return {"master_db": max(-40.0, min(0.0, master_db))}
+
+    @app.put("/api/settings/audio")
+    def put_audio_settings(payload: Dict[str, Any], request: Request) -> Dict[str, Any]:
+        _require_admin(request)
+        try:
+            master_db = float(payload.get("master_db"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail={"code": "invalid_master_db", "message": "master_db muss eine Zahl sein."})
+        if not -40 <= master_db <= 0:
+            raise HTTPException(status_code=422, detail={"code": "invalid_master_db", "message": "master_db muss zwischen -40 und 0 liegen."})
+        conn = db_connect(db_path)
+        conn.execute("INSERT INTO app_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("master_db", str(master_db)))
+        conn.commit()
+        conn.close()
+        return {"master_db": master_db}
 
     @app.get("/api/games")
     def list_games() -> Dict[str, Any]:
@@ -526,6 +598,7 @@ def make_app(
             "session_id": r["session_id"],
             "title": r["title"],
             "group": r["scene_group"],
+            "groupColor": r["group_color"],
             "tags": json.loads(r["tags_json"]),
             "musicBank": json.loads(r["music_bank_json"]),
             "currentMusic": r["current_music"],
@@ -577,6 +650,12 @@ def make_app(
         sfx_ids = [item["assetId"] for item in sfx_bank]
         _validate_asset_ids(ambience_ids, game_id, field="ambienceBank", expected_bucket="Ambience")
         _validate_asset_ids(sfx_ids, game_id, field="sfxBank", expected_bucket="SFX")
+        group_color = payload.get("groupColor")
+        if group_color is not None:
+            group_color = _clean_text(group_color, "groupColor", max_length=20)
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", group_color):
+                raise HTTPException(status_code=422, detail={"code": "invalid_group_color", "message": "groupColor muss eine Hex-Farbe sein."})
+
         current_music = payload.get("currentMusic")
         if current_music is not None:
             current_music = _clean_text(current_music, "currentMusic", max_length=100)
@@ -595,14 +674,15 @@ def make_app(
 
         conn.execute(
             """
-            INSERT INTO scenes (id, game_id, session_id, title, scene_group, tags_json, music_bank_json, current_music,
+            INSERT INTO scenes (id, game_id, session_id, title, scene_group, group_color, tags_json, music_bank_json, current_music,
                                 ambience_bank_json, sfx_bank_json, scene_order, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
             ON CONFLICT(id) DO UPDATE SET
               game_id=excluded.game_id,
               session_id=excluded.session_id,
               title=excluded.title,
               scene_group=excluded.scene_group,
+              group_color=excluded.group_color,
               tags_json=excluded.tags_json,
               music_bank_json=excluded.music_bank_json,
               current_music=excluded.current_music,
@@ -617,6 +697,7 @@ def make_app(
                 session_id,
                 title,
                 group,
+                group_color,
                 json.dumps(tags, ensure_ascii=False),
                 json.dumps(music_bank, ensure_ascii=False),
                 current_music,
@@ -882,14 +963,14 @@ def make_app(
                 raise HTTPException(status_code=500, detail="UI index.html missing")
             return index_file.read_text(encoding="utf-8").replace("{{LANGUAGE}}", language)
 
-        @app.get("/language.json")
-        def languages_json():
-            language_file = ui_dir / "language.json"
-            if not language_file.exists():
-                language_file = Path(__file__).resolve().parent / "language.json"
-            if not language_file.exists():
-                raise HTTPException(status_code=404, detail="language.json missing")
-            return FileResponse(language_file, media_type="application/json")
+        @app.get("/api/locales")
+        def locales_json():
+            return {
+                "supportedLanguages": sorted(locales),
+                "labels": {code: locales[code]["label"] for code in sorted(locales)},
+                "translations": {code: locales[code]["translations"] for code in sorted(locales)},
+            }
+
 
         @app.get("/", response_class=HTMLResponse)
         def index():
@@ -915,7 +996,7 @@ def main() -> None:
     ap.add_argument("--ui-dir", default=os.environ.get("SOUNDBOARD_UI_DIR", "./ui-dist"), help="Directory with built UI (index.html + assets/)")
     ap.add_argument("--host", default=os.environ.get("SOUNDBOARD_HOST", "0.0.0.0"))
     ap.add_argument("--port", default=int(os.environ.get("SOUNDBOARD_PORT", "8000")), type=int)
-    ap.add_argument("--language", default=os.environ.get("SOUNDBOARD_LANGUAGE", "en"), choices=sorted({"en", "de"}), help="UI language")
+    ap.add_argument("--language", default=os.environ.get("SOUNDBOARD_LANGUAGE", "en"), help="Default UI language; must match a file in locale/")
     ap.add_argument("--admin-token", default=os.environ.get("SOUNDBOARD_ADMIN_TOKEN"), help="If set, require X-Admin-Token for write endpoints")
     ap.add_argument("--cors-origins", default=os.environ.get("SOUNDBOARD_CORS_ORIGINS", "*"), help="Comma-separated allowed CORS origins; use * only for development")
     ap.add_argument("--log-file", default=os.environ.get("SOUNDBOARD_LOG_FILE"), help="Rotating log file path")

@@ -60,7 +60,7 @@
     };
 
     // ---------------------- Localization ----------------------
-    // Translations are loaded from the external language.json file.
+    // Translations are loaded from the locale files exposed by the server.
     let supportedLanguages = ['de', 'en'];
     let languageLabels = { de: 'Deutsch', en: 'English' };
     const fallbackTranslations = {
@@ -81,6 +81,8 @@
         crossfade: 'Crossfade', loop: 'Loop', title: 'Titel', playlist: 'Playlist',
         addFromLibrary: 'Aus Bibliothek hinzufügen', librarySearch: 'Bibliothek durchsuchen',
         chooseAssets: 'Assets für dieses Spiel auswählen',
+        chooseAllAssets: 'Alle sichtbaren Assets auswählen',
+        deselectAllAssets: 'Alle sichtbaren Assets abwählen',
         chooseAssetsHint: 'Hier wählst du nur die verfügbaren Titel. Loop, Lautstärke und Wiedergabeoptionen stellst du später in den Szenen ein.',
         noAssets: 'Keine Assets in diesem Spiel.', loading: 'Wird geladen…',
         createLibrary: 'Bibliothek erstellen', libraryName: 'Bibliotheksname',
@@ -109,6 +111,8 @@
         crossfade: 'Crossfade', loop: 'Loop', title: 'Title', playlist: 'Playlist',
         addFromLibrary: 'Add from library', librarySearch: 'Search library',
         chooseAssets: 'Choose assets for this game',
+        chooseAllAssets: 'Select all visible assets',
+        deselectAllAssets: 'Deselect all visible assets',
         chooseAssetsHint: 'Choose the available titles here. Configure looping, volume and playback options later in the scenes.',
         noAssets: 'No assets in this game.', loading: 'Loading…',
         createLibrary: 'Create library', libraryName: 'Library name',
@@ -124,7 +128,7 @@
     state.language = (document.documentElement.lang || 'de').toLowerCase().startsWith('en') ? 'en' : 'de';
     async function loadTranslations() {
       try {
-        const response = await fetch('/language.json', { cache: 'no-store' });
+        const response = await fetch('/api/locales', { cache: 'no-store' });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         supportedLanguages = data.supportedLanguages || supportedLanguages;
@@ -174,6 +178,8 @@
 
     const API = {
       health: () => apiFetch('/api/health'),
+      audioSettings: () => apiFetch('/api/settings/audio'),
+      saveAudioSettings: (payload) => apiFetch('/api/settings/audio', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
       games: () => apiFetch('/api/games'),
       createGame: (payload) => apiFetch('/api/games', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
       library: (gameId, sessionId=null) => apiFetch(`/api/library?game_id=${encodeURIComponent(gameId)}${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ''}`),
@@ -208,11 +214,11 @@
       library: null,
       scenes: [],
       activeSceneId: null,
-      ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null },
+      ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null, dialogAssetQuery: '', dialogAssetBucket: 'Alle' },
       audio: {
         unlocked: false,
         ctx: null,
-        master: { gain: null, db: -10 },
+        master: { gain: null, db: -10, saveTimer: null },
         buses: {
           music: { gain: null, db: -14 },
           ambience: { gain: null, db: -16 },
@@ -321,19 +327,47 @@
       const dialog = state.ui.dialog;
       if (!dialog) return null;
       const submit = () => {
-        const input = document.querySelector('[data-dialog-input]');
+        const input = document.querySelector('[data-dialog-title]') || document.querySelector('[data-dialog-input]');
         const value = input ? input.value.trim() : '';
+        const selectedGroup = document.querySelector('[data-dialog-group]')?.value || '';
         const color = document.querySelector('[data-dialog-color]')?.value || '';
+        const assets = Array.from(document.querySelectorAll('[data-dialog-asset]:checked')).map(node => node.value);
         if (dialog.requireValue && !value) return;
         closeDialog();
-        dialog.onSubmit?.(value, color);
+        dialog.onSubmit?.(value, color, assets, selectedGroup);
       };
       const backdrop = el('div', { class: 'fixed inset-0 z-[70] dialogBackdrop flex items-center justify-center p-4', role: 'presentation', onMouseDown: (e) => { if (e.target === e.currentTarget) closeDialog(); } }, [
         el('div', { class: 'card rounded-2xl w-full max-w-md p-5 shadow-2xl', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dialog-title', onMouseDown: (e) => e.stopPropagation(), onClick: (e) => e.stopPropagation() }, [
           el('h2', { id: 'dialog-title', class: 'text-lg font-extrabold', text: dialog.title }),
           dialog.message ? el('p', { class: 'mt-2 text-sm text-slate-300', text: dialog.message }) : null,
-          dialog.select ? el('select', { 'data-dialog-input': '1', class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeDialog(); } }, (dialog.options || []).map(option => el('option', { value: option.value, text: option.label, selected: option.value === dialog.value }))) : null,
-          dialog.input ? el('input', { type: 'text', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', placeholder: dialog.placeholder || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
+          dialog.select ? el('select', { 'data-dialog-group': '1', class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeDialog(); } }, (dialog.options || []).map(option => el('option', { value: option.value, text: option.label, selected: option.value === dialog.value }))) : null,
+          dialog.input ? el('input', { type: 'text', 'data-dialog-title': '1', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', placeholder: dialog.placeholder || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
+          dialog.assetPicker ? (() => {
+            const query = (state.ui.dialogAssetQuery || '').trim().toLowerCase();
+            const bucket = state.ui.dialogAssetBucket || 'Alle';
+            const labels = { Alle: t('assetFilterAll'), Musik: t('assetFilterMusic'), Ambience: t('assetFilterAmbience'), SFX: t('assetFilterSfx') };
+            const options = (dialog.assetOptions || []).filter(asset => (bucket === 'Alle' || asset.bucket === bucket) && (!query || `${asset.filename} ${asset.rel_path || ''}`.toLowerCase().includes(query)));
+            return el('div', { class: 'mt-4' }, [
+              el('div', { class: 'flex items-center justify-between gap-2 mb-2' }, [
+                el('div', { class: 'text-xs font-semibold text-slate-400', text: t('chooseAssets') }),
+                el('button', { type: 'button', class: 'px-2 py-1 rounded-lg btn text-[11px] font-semibold', text: options.length > 0 && options.every(asset => (dialog.selectedAssets || []).includes(asset.id)) ? t('deselectAllAssets') : t('chooseAllAssets'), onClick: () => {
+                  const selected = new Set(dialog.selectedAssets || []);
+                  const allVisibleSelected = options.length > 0 && options.every(asset => selected.has(asset.id));
+                  options.forEach(asset => allVisibleSelected ? selected.delete(asset.id) : selected.add(asset.id));
+                  dialog.selectedAssets = [...selected];
+                  render();
+                } }),
+              ]),
+              el('div', { class: 'flex gap-2 mb-2' }, [
+                el('select', { class: 'px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', value: bucket, onChange: e => { state.ui.dialogAssetBucket = e.target.value; render(); } }, Object.keys(labels).map(k => el('option', { value: k, text: labels[k], selected: k === bucket }))),
+                el('input', { class: 'flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', placeholder: t('assetSearch'), value: state.ui.dialogAssetQuery || '', onInput: e => { state.ui.dialogAssetQuery = e.target.value; render(); } })
+              ]),
+              el('div', { class: 'h-[260px] overflow-y-auto rounded-lg border border-slate-700 bg-slate-950/70 p-2 space-y-1' }, options.map(asset => el('label', { class: 'flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-800 text-xs' }, [
+                el('input', { type: 'checkbox', value: asset.id, 'data-dialog-asset': '1', checked: (dialog.selectedAssets || []).includes(asset.id), class: 'accent-emerald-500' }),
+                el('span', { class: 'truncate', text: `${labels[asset.bucket] || asset.bucket} · ${asset.filename}` })
+              ])))
+            ]);
+          })() : null,
           dialog.color ? el('input', { type: 'color', 'data-dialog-color': '1', class: 'mt-4 h-10 w-full rounded-lg bg-slate-950 border border-slate-700', value: dialog.color, onMouseDown: (e) => e.stopPropagation() }) : null,
           el('div', { class: 'mt-5 flex justify-end gap-2' }, [
             el('button', { type: 'button', class: 'px-3 py-2 rounded-lg btn text-sm font-semibold', text: t('cancel'), onClick: closeDialog }),
@@ -344,7 +378,7 @@
       return backdrop;
     }
 
-    const SWATCHES = ['#ef4444','#f97316','#eab308','#22c55e','#0ea5e9','#3b82f6','#a855f7','#ec4899','#64748b'];
+    const SWATCHES = ['#ef4444','#f97316','#eab308','#22c55e','#0ea5e9','#3b82f6','#a855f7','#ec4899','#64748b','#f9a8d4','#fcd34d','#a7f3d0'];
 
     const $ = (sel, root=document) => root.querySelector(sel);
     const el = (tag, attrs={}, kids=[]) => {
@@ -430,7 +464,23 @@
     }
 
     function stopAllAudio({ panicStop=false } = {}) {
-      if (!state.audio.ctx) return;
+      // Stopping all audio also turns every ambience layer off in the scene
+      // model, so the toggle buttons cannot remain visually active.
+      const sc = activeScene();
+      if (sc?.ambienceBank?.length) {
+        let changed = false;
+        for (const layer of sc.ambienceBank) {
+          if (layer.on) {
+            layer.on = false;
+            changed = true;
+          }
+        }
+        if (changed) saveScene(sc, { quiet: true });
+      }
+      if (!state.audio.ctx) {
+        render();
+        return;
+      }
       const ctx = state.audio.ctx;
       const fade = panicStop ? 0.01 : 0.5;
       const current = state.audio.music.node;
@@ -524,6 +574,10 @@
         state.audio.master.gain.gain.cancelScheduledValues(ctx.currentTime);
         state.audio.master.gain.gain.linearRampToValueAtTime(dbToGain(db), ctx.currentTime + 0.03);
       }
+      clearTimeout(state.audio.master.saveTimer);
+      state.audio.master.saveTimer = setTimeout(() => {
+        API.saveAudioSettings({ master_db: Number(state.audio.master.db) }).catch(() => {});
+      }, 250);
       render();
     }
 
@@ -1066,6 +1120,8 @@
       state.ui.busy = true; render();
       try {
         await API.health();
+        const audioSettings = await API.audioSettings();
+        state.audio.master.db = Number(audioSettings?.master_db ?? state.audio.master.db);
         state.connected = true;
         const g = await API.games();
         state.games = g.games || [];
@@ -1478,7 +1534,7 @@
         state.ui.setupLibraryName = cleanName;
         toast(t('libraryCreated'), 'ok');
       } catch (e) {
-        toast(`Bibliothek konnte nicht erstellt werden: ${e.message}`, 'warn');
+        toast(`${t('libraryCreateFailed')}: ${e.message}`, 'warn');
       } finally {
         state.ui.busy = false;
         render();
@@ -1507,6 +1563,41 @@
         state.ui.busy = false;
         render();
       }
+    }
+
+    function availableDialogAssets() {
+      const result = [];
+      for (const bucket of ['Musik', 'Ambience', 'SFX']) for (const asset of (state.ui.fullLibrary?.[bucket] || state.library?.[bucket] || [])) result.push({ ...asset, bucket });
+      return result;
+    }
+
+    async function openGameSetupDialog({ editing = false } = {}) {
+      if (!state.activeGameId) return;
+      if (!state.ui.fullLibrary) {
+        try { const full = await API.library(state.activeGameId, null); state.ui.fullLibrary = full.library || { Musik: [], Ambience: [], SFX: [] }; } catch (e) { toast(t('libraryLoadFailed'), 'warn'); return; }
+      }
+      const current = state.sessions.find(s => s.id === state.activeSessionId);
+      const existing = new Set((state.sessionAssets || []).map(a => a.asset_id));
+      openDialog({
+        title: editing ? t('editGame') : t('createGame'),
+        message: editing ? t('editGameHint') : t('createGameHint'),
+        input: true, assetPicker: true, assetOptions: availableDialogAssets(), selectedAssets: [...existing],
+        requireValue: true, value: current?.title || '', placeholder: t('gameName'), confirmText: editing ? t('save') : t('create'),
+        onSubmit: async (title, color, assets) => {
+          try {
+            let session = current;
+            if (!editing) { const res = await API.createSession({ game_id: state.activeGameId, title }); session = res.session; state.sessions.unshift(session); state.activeSessionId = session.id; }
+            else { const res = await API.renameSession(session.id, { title }); session = res.session; state.sessions = state.sessions.map(s => s.id === session.id ? session : s); }
+            const nextAssetIds = new Set(assets);
+            if (editing) {
+              const removedAssetIds = [...existing].filter(assetId => !nextAssetIds.has(assetId));
+              for (const assetId of removedAssetIds) await API.removeSessionAsset(session.id, assetId);
+            }
+            await API.upsertSessionAssets(session.id, { assets: assets.map((asset_id, index) => ({ asset_id, preload: 'warm', volume_db: 0, loop: 0, sort_order: index })) });
+            await reloadActiveSession(); toast(editing ? t('gameAdapted') : t('gameCreatedToast'), 'ok'); render();
+          } catch (e) { toast(`Speichern fehlgeschlagen: ${e.message}`, 'warn'); }
+        }
+      });
     }
 
     function renderEmptySetup() {
@@ -1556,10 +1647,10 @@
       const gameStep = el('div', { class: 'card rounded-2xl w-full max-w-lg p-7 shadow-2xl' }, [
         el('div', { class: 'text-xs uppercase tracking-[0.2em] text-emerald-400 font-bold', text: t('stepTwo') }),
         el('h1', { class: 'mt-3 text-3xl font-extrabold', text: t('createFirstGame') }),
-        el('p', { class: 'mt-3 text-slate-300 leading-relaxed', text: `Bibliothek: ${state.ui.setupLibraryName || '—'}. Gib deinem ersten Spiel einen Namen.` }),
-        el('label', { class: 'block mt-6 text-sm font-semibold text-slate-200', text: 'Spielname' }),
+        el('p', { class: 'mt-3 text-slate-300 leading-relaxed', text: `${t('libraryColon')}${state.ui.setupLibraryName || '—'}. ${t('gameSetupText')}` }),
+        el('label', { class: 'block mt-6 text-sm font-semibold text-slate-200', text: t('gameName') }),
         gameInput,
-        el('button', { class: 'mt-4 w-full px-4 py-3 rounded-xl btnPrimary font-bold', text: 'Spiel erstellen', onClick: submitGame })
+        el('button', { class: 'mt-4 w-full px-4 py-3 rounded-xl btnPrimary font-bold', text: t('createGame'), onClick: submitGame })
       ]);
       return el('div', { class: 'min-h-screen flex items-center justify-center p-6' }, [libraryReady ? gameStep : libraryStep]);
     }
@@ -1658,27 +1749,7 @@
                 return;
               }
               state.activeGameId = String(selectedGameId);
-              openDialog({ title: t('createGame'), message: t('createGameHint'), input: true, requireValue: true, value: `${t('game')} ${new Date().toLocaleDateString(state.language === 'de' ? 'de-DE' : 'en-US')}`, placeholder: t('gameName'), confirmText: t('create'), onSubmit: async (title) => {
-                try {
-                  const normalizedTitle = String(title ?? '').trim();
-                  const normalizedGameId = String(state.activeGameId || state.games[0]?.id || '').trim();
-                  if (!normalizedGameId) throw new Error('No game selected. Reload after adding a game folder.');
-                  const res = await API.createSession({ game_id: normalizedGameId, title: normalizedTitle });
-                  state.sessions.unshift(res.session);
-                  state.activeSessionId = res.session.id;
-                  const sa = await API.sessionAssets(state.activeSessionId);
-                  state.sessionAssets = sa.assets || [];
-                  const libRes = await API.library(state.activeGameId, state.activeSessionId);
-                  state.library = libRes.library;
-                  const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
-                  state.scenes = scenesRes.scenes || [];
-                  state.activeSceneId = state.scenes[0]?.id || null;
-                  toast(t('sessionCreated'), 'ok');
-                  render();
-                } catch (e) {
-                  toast(`Create session failed: ${e.message}`, 'warn');
-                }
-              }});
+              openGameSetupDialog();
             }})
           ]),
           el('div', { class: 'flex items-center gap-2 flex-wrap min-w-0' }, [
@@ -1708,26 +1779,19 @@
               ...(state.games.length === 0 ? [el('option', { value: '' , text: '— (kein Spiel)' })] : []),
               ...(state.sessions || []).map(s => el('option', { value: s.id, text: s.title, selected: s.id === state.activeSessionId }))
             ]),
-            el('button', { class: 'shrink-0 max-w-full px-3 py-2 rounded-lg btn text-xs font-semibold whitespace-normal text-center', text: state.ui.sessionBuilderOpen ? t('closeBuilder') : t('builder'), onClick: () => { state.ui.sessionBuilderOpen = !state.ui.sessionBuilderOpen; render(); }}),
             state.activeSessionId ? el('details', { class: 'relative' }, [
               el('summary', { class: 'list-none cursor-pointer shrink-0 w-12 px-2 py-2 rounded-lg btn text-xs font-semibold text-center whitespace-nowrap overflow-hidden', text: '...', title: t('moreGameActions') }),
               el('div', { class: 'absolute right-0 top-full mt-2 z-30 min-w-40 rounded-xl menu p-1 space-y-1' }, [
-                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('rename'), onClick: () => {
-                  const current = state.sessions.find(s => s.id === state.activeSessionId);
-                  openDialog({ title: t('renameSession'), message: t('renameSessionHint'), input: true, requireValue: true, value: current?.title || '', placeholder: t('sessionTitle'), confirmText: t('save'), onSubmit: async (title) => {
-                    try { const res = await API.renameSession(state.activeSessionId, { title }); state.sessions = state.sessions.map(s => s.id === state.activeSessionId ? res.session : s); toast('Session renamed', 'ok'); render(); }
-                    catch (e) { toast(`Rename failed: ${e.message}`, 'warn'); }
-                  }});
-                }}),
+                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('editGame'), onClick: () => openGameSetupDialog({ editing: true }) }),
                 el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('duplicate'), onClick: async () => {
-                  try { const res = await API.duplicateSession(state.activeSessionId); state.sessions.unshift(res.session); state.activeSessionId = res.session.id; await reloadActiveSession(); toast('Session duplicated', 'ok'); render(); }
-                  catch (e) { toast(`Duplicate failed: ${e.message}`, 'warn'); }
+                  try { const res = await API.duplicateSession(state.activeSessionId); state.sessions.unshift(res.session); state.activeSessionId = res.session.id; await reloadActiveSession(); toast(t('gameDuplicated'), 'ok'); render(); }
+                  catch (e) { toast(t('duplicateGameFailed', { error: e.message }), 'warn'); }
                 }}),
-                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteSession'), onClick: () => {
+                el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteGame'), onClick: () => {
                   const current = state.sessions.find(s => s.id === state.activeSessionId);
-                  openDialog({ title: t('deleteSession'), message: t('deleteSessionConfirm', { title: current?.title || '' }), danger: true, confirmText: t('delete'), onSubmit: async () => {
-                    try { await API.deleteSession(state.activeSessionId); state.sessions = state.sessions.filter(s => s.id !== state.activeSessionId); state.activeSessionId = state.sessions[0]?.id || null; await reloadActiveSession(); toast('Session deleted', 'ok'); render(); }
-                    catch (e) { toast(`Delete failed: ${e.message}`, 'warn'); }
+                  openDialog({ title: t('deleteGame'), message: t('deleteGameConfirm', { title: current?.title || '' }), danger: true, confirmText: t('delete'), onSubmit: async () => {
+                    try { await API.deleteSession(state.activeSessionId); state.sessions = state.sessions.filter(s => s.id !== state.activeSessionId); state.activeSessionId = state.sessions[0]?.id || null; await reloadActiveSession(); toast(t('gameDeleted'), 'ok'); render(); }
+                    catch (e) { toast(t('deleteGameFailed', { error: e.message }), 'warn'); }
                   }});
                 }})
               ])
@@ -1741,19 +1805,13 @@
         el('div', { class: 'p-4 border-b border-slate-800' }, [
           el('div', { class: 'flex items-center justify-between gap-2' }, [
             el('div', { class: 'text-sm font-extrabold', text: t('scene') }),
-            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('newShort'), onClick: async () => {
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('newShort'), onClick: () => {
               if (!state.activeGameId || !state.games.some(g => g.id === state.activeGameId)) return;
-              try {
-                const scNew = makeDefaultScene(state.activeGameId);
-                scNew.order = state.scenes.length;
-                const res = await API.upsertScene(scNew);
-                state.scenes.push(res.scene);
-                state.activeSceneId = res.scene.id;
-                toast(t('sceneCreated'), 'ok');
-                render();
-              } catch (e) {
-                toast(`Create scene failed: ${e.message}`, 'warn');
-              }
+              const groups = groupNames();
+              openDialog({ title: t('newScene'), message: t('newSceneHint'), input: true, select: true, requireValue: true, value: '', placeholder: t('sceneName'), options: groups.map(group => ({ value: group, label: group })), confirmText: t('create'), onSubmit: async (title, color, assets, selectedGroup) => {
+                try { const scNew = makeDefaultScene(state.activeGameId); scNew.title = title; scNew.group = selectedGroup || groups[0] || t('defaultGroup'); const res = await API.upsertScene(scNew); state.scenes.push(res.scene); state.activeSceneId = res.scene.id; toast(t('sceneCreated'), 'ok'); render(); }
+                catch (e) { toast(`Create scene failed: ${e.message}`, 'warn'); }
+              }});
             }}),
           ]),
           el('div', { class: 'mt-3 flex justify-end' }, [
@@ -1927,7 +1985,7 @@
                 playing && state.audio.music.status === 'playing' ? el('span', { class: 'text-[11px] font-semibold ' + (state.audio.music.loopMode === 'track' ? 'text-amber-300' : state.audio.music.loopMode === 'playlist' ? 'text-emerald-300' : 'text-indigo-300'), text: state.audio.music.loopMode === 'track' ? `↻ ${t('title')}` : state.audio.music.loopMode === 'playlist' ? `↻ ${t('playlist')}` : t('playing'), title: state.audio.music.loopMode === 'track' ? t('loopTrackShort') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylistShort') : t('titlePlaying') }) : el('span', { class: 'text-[11px] text-slate-600', text: state.audio.music.status === 'loading' && state.audio.music.node?.assetId === id ? 'lädt…' : '' }),
                 el('button', { class: 'text-slate-600 hover:text-rose-400 text-xs', text: t('delete'), onClick: () => removeFromMusicBank(id) })
               ]);
-            })) : [el('div', { class: 'px-4 py-4 text-sm text-slate-500', text: 'Keine Titel in der Playlist.' })]
+            })) : [el('div', { class: 'px-4 py-4 text-sm text-slate-500', text: t('emptyPlaylist') })]
           ),
 
           el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
@@ -2137,8 +2195,8 @@
       const menuBtn = el('button', {
         class: 'absolute top-2 right-2 z-30 w-7 h-7 min-h-0 p-0 rounded-full bg-black/70 hover:bg-black/90 text-white text-[10px] leading-none opacity-100 transition flex items-center justify-center shadow-md',
         text: '⋯',
-        title: 'Pad-Einstellungen',
-        'aria-label': 'Pad-Einstellungen',
+        title: t('padSettings'),
+        'aria-label': t('padSettings'),
         onClick: (e) => {
           e.preventDefault();
           e.stopPropagation();
