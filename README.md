@@ -2,6 +2,22 @@
 
 A browser-based LAN soundboard for tabletop role-playing games. The Python server scans game-specific audio folders, exposes a small JSON API, stores scenes and sessions in SQLite, and serves a single-page web interface. Audio playback and mixing happen in the browser using Web Audio APIs.
 
+## Release 0.2.0
+
+Version **0.2.0** turns the DnD Soundboard into a flexible control center for live tabletop sessions. Audio libraries can be organized by game, while scenes and sessions make it easy to prepare exactly the right sounds for every situation.
+
+### Highlights
+
+- Create, rename, duplicate, delete, group, and reorder scenes.
+- Configure music, ambience, and SFX for each scene.
+- Create focused sessions and select only the assets needed for an adventure or campaign.
+- Search, filter, sort, and bulk-add audio assets.
+- Use playlist and track looping, crossfades, fades, ambience layers, SFX ducking, and preloading.
+- Configure polyphonic SFX pads with **Poly**, **Toggle**, or **Restart** behavior.
+- Create, edit, duplicate, and manage games directly from the user interface.
+- Switch between English and German translations.
+- Benefit from stable UUID-based identifiers, SQLite persistence, validated audio paths, rate limiting, audit logging, security headers, and health checks.
+
 ## Features
 
 - LAN-friendly web interface for live tabletop sessions
@@ -22,7 +38,9 @@ A browser-based LAN soundboard for tabletop role-playing games. The Python serve
 .
 ├── soundboard-server.py   # FastAPI application and API server
 ├── index.html             # Single-file browser UI
-├── language.json          # English/German translations
+├── locale/                # One JSON file per language
+│   ├── de.json            # German translations
+│   └── en.json            # English translations
 ├── .env.example           # Recommended local configuration template
 ├── requirements.txt       # Python runtime dependencies
 ├── library/               # Local audio libraries (keep out of Git)
@@ -64,7 +82,8 @@ For a first local run, the defaults are sufficient. The server expects the UI fi
 
 ```bash
 mkdir -p ui-dist
-cp index.html language.json ui-dist/
+cp index.html ui-dist/
+cp -r locale ui-dist/
 ```
 
 ### 4. Add audio files
@@ -108,10 +127,10 @@ The server accepts environment variables from `.env` and equivalent command-line
 |---|---:|---|
 | `SOUNDBOARD_GAMES_DIR` | `./library` | Root folder containing game libraries |
 | `SOUNDBOARD_DB` | `./soundboard.db` | SQLite database path |
-| `SOUNDBOARD_UI_DIR` | `./ui-dist` | Folder containing `index.html` and `language.json` |
+| `SOUNDBOARD_UI_DIR` | `./ui-dist` | Folder containing `index.html` and the `locale/` directory |
 | `SOUNDBOARD_HOST` | `0.0.0.0` | Network bind address |
 | `SOUNDBOARD_PORT` | `8000` | HTTP port |
-| `SOUNDBOARD_LANGUAGE` | `en` | UI language: `en` or `de` |
+| `SOUNDBOARD_LANGUAGE` | `en` | Default UI language; must match a file in `locale/` |
 | `SOUNDBOARD_ADMIN_TOKEN` | empty | Protects write endpoints when set |
 | `SOUNDBOARD_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins |
 | `SOUNDBOARD_LOG_FILE` | empty | Optional rotating log file |
@@ -162,4 +181,4 @@ Before publishing, consider adding automated tests for asset scanning, path trav
 
 ## License
 
-As seen in the `LICENSE` file.
+No license has been selected yet. Add a `LICENSE` file before distributing the project publicly.
