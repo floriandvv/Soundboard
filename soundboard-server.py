@@ -972,6 +972,32 @@ def make_app(
             }
 
 
+        def _find_favicon(filename: str) -> Optional[Path]:
+            # Support favicons placed next to the server, in the UI directory,
+            # or in the UI's public/static assets folder.
+            candidates = [
+                ui_dir / filename,
+                ui_dir / "public" / filename,
+                ui_dir / "static" / filename,
+                Path(__file__).resolve().parent / filename,
+                Path.cwd() / filename,
+            ]
+            return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+        @app.get("/favicon.ico", include_in_schema=False)
+        def favicon_ico():
+            favicon_file = _find_favicon("favicon.ico")
+            if not favicon_file:
+                raise HTTPException(status_code=404, detail="favicon.ico not found")
+            return FileResponse(favicon_file, media_type="image/x-icon")
+
+        @app.get("/favicon.png", include_in_schema=False)
+        def favicon_png():
+            favicon_file = _find_favicon("favicon.png")
+            if not favicon_file:
+                raise HTTPException(status_code=404, detail="favicon.png not found")
+            return FileResponse(favicon_file, media_type="image/png")
+
         @app.get("/", response_class=HTMLResponse)
         def index():
             return render_index()
