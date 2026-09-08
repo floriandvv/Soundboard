@@ -2,10 +2,6 @@
 
 **Release date:** September 8, 2026
 
-## Baseline
-
-Favicon support was already available before these changes. The following notes document what was added to the Soundboard afterward.
-
 ## Changes since favicon support
 
 ### Scene automation indicator
