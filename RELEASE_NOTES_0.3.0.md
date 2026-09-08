@@ -29,7 +29,7 @@
 ### Documentation and SFX content
 
 - Updated the README and user manual with the current playback, scene automation, SFX synchronization, and playlist behavior.
-- Added 100 concise English descriptions for generating SFX assets for the SFX bank.
+- Added assets for the SFX bank.
 
 ## Verification
 
