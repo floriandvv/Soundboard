@@ -1,183 +1,121 @@
 # DnD Soundboard
 
-A browser-based LAN soundboard for tabletop role-playing games. The Python server scans game-specific audio folders, exposes a small JSON API, stores scenes and sessions in SQLite, and serves a single-page web interface. Audio playback and mixing happen in the browser using Web Audio APIs.
+A browser-based soundboard for tabletop role-playing sessions with music playlists, ambience layers, and instantly triggered SFX pads.
 
-## Release 0.2.0
+## Version
 
-Version **0.2.0** turns the DnD Soundboard into a flexible control center for live tabletop sessions. Audio libraries can be organized by game, while scenes and sessions make it easy to prepare exactly the right sounds for every situation.
+**Current: 0.3.0**
 
-### Highlights
-
-- Create, rename, duplicate, delete, group, and reorder scenes.
-- Configure music, ambience, and SFX for each scene.
-- Create focused sessions and select only the assets needed for an adventure or campaign.
-- Search, filter, sort, and bulk-add audio assets.
-- Use playlist and track looping, crossfades, fades, ambience layers, SFX ducking, and preloading.
-- Configure polyphonic SFX pads with **Poly**, **Toggle**, or **Restart** behavior.
-- Create, edit, duplicate, and manage games directly from the user interface.
-- Switch between English and German translations.
-- Benefit from stable UUID-based identifiers, SQLite persistence, validated audio paths, rate limiting, audit logging, security headers, and health checks.
+Version 0.3.0 adds robust favicon delivery for different UI deployment layouts. See the [Release Notes](RELEASE_NOTES_0.3.0.md) for details.
 
 ## Features
 
-- LAN-friendly web interface for live tabletop sessions
-- Separate audio banks for **Music**, **Ambience**, and **SFX**
-- Scene management with reusable music, ambience, and SFX configurations
-- Sessions for selecting a curated subset of assets per game
-- Browser-side playback with playlists, crossfades, loops, layers, fades, ducking, and polyphonic SFX pads
-- English and German UI translations
-- Stable UUID-based game and asset identifiers
-- SQLite persistence for scenes and sessions
-- Audio streaming with path validation
-- Optional admin-token protection for write endpoints
-- Basic request rate limiting, audit logging, security headers, and health checks
+- Game libraries with separate audio categories
+- Sessions within a game
+- Scenes with groups, tags, and custom audio configuration
+- Music playlists with:
+  - playback, pause, and track selection
+  - previous/next track controls
+  - track loop, playlist loop, and loop-off modes
+  - crossfade
+- Multiple ambience layers with individual volume and fade controls
+- SFX pads with:
+  - customizable colors
+  - pad names
+  - hotkeys
+  - poly, toggle, and restart modes
+  - marking for automatic playback on scene change
+- Scene automation for music, ambience, and SFX
+- Automatic SFX automation synchronization:
+  - marking at least one pad enables global SFX automation
+  - unmarking the last pad disables it
+  - disabling global SFX automation removes all pad markers
+- Audio ducking for voice playback
+- Master, bus, and pad volume controls
+- Dark UI with German and English localization
+- Favicon support for `favicon.ico` and `favicon.png`
 
-## Repository layout
+## Requirements
+
+- Python 3.10 or newer
+- FastAPI
+- Uvicorn
+- A modern browser with Web Audio API support
+
+Install Python dependencies according to your project setup, for example using an existing `requirements.txt` file.
+
+## Start the Server
+
+From the project directory:
+
+```bash
+python3 soundboard-server.py --games-dir ./library --host 0.0.0.0 --port 8000
+```
+
+Then open the following address in a browser:
 
 ```text
-.
-├── soundboard-server.py   # FastAPI application and API server
-├── locale/                # One JSON file per language
-│   ├── de.json            # German translations
-│   └── en.json            # English translations
-├── .env.example           # Recommended local configuration template
-├── requirements.txt       # Python runtime dependencies
-├── library/               # Local audio libraries (keep out of Git)
-├── ui-dist/               # Served UI directory in the default configuration
-    └── index.html         # Single-file browser UI
-├── logs/                  # Optional rotating server logs
-├── GETTING_STARTED.md
-└── INITIAL_COMMIT_MESSAGE.txt
+http://localhost:8000
 ```
 
-## Quick start
+To access the Soundboard from another device on the local network:
 
-### 1. Create a virtual environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
+```text
+http://<server-ip>:8000
 ```
 
-On Windows PowerShell:
+## Library Structure
 
-```powershell
-py -m venv .venv
-.venv\\Scripts\\Activate.ps1
-```
-
-### 2. Install dependencies
-
-```bash
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-### 3. Prepare configuration
-
-Copy `.env.example` to `.env` and adjust the values for your environment. Do not commit `.env` if it contains private tokens or machine-specific settings.
-
-For a first local run, the defaults are sufficient. The server expects the UI files in `ui-dist/`, so create that directory and copy the UI files into it:
-
-```bash
-mkdir -p ui-dist
-cp index.html ui-dist/
-cp -r locale ui-dist/
-```
-
-### 4. Add audio files
-
-Create one or more game folders below `library/`:
+Audio files are organized by game and audio category:
 
 ```text
 library/
-└── My Campaign/
+└── <game-name>/
     ├── Musik/
-    │   ├── exploration.ogg
-    │   └── battle.mp3
     ├── Ambience/
-    │   └── forest.wav
     └── SFX/
-        ├── sword-hit.wav
-        └── door.ogg
 ```
 
-The folder names `Musik`, `Ambience`, and `SFX` are part of the current server contract. Supported audio extensions are `.mp3`, `.wav`, `.ogg`, `.opus`, `.flac`, `.m4a`, and `.aac`.
+The UI displays the filenames as available audio assets.
 
-### 5. Start the server
+## UI Delivery and Favicons
+
+The web UI can be served from different static UI layouts. The server automatically searches for favicons in these directories:
+
+```text
+ui-dist/
+ui-dist/public/
+ui-dist/static/
+```
+
+The following fallback locations are also checked:
+
+- the directory next to the server file
+- the current working directory
+
+The available routes are:
+
+```text
+/favicon.ico
+/favicon.png
+```
+
+The UI references both formats so browsers can use the appropriate favicon for the environment.
+
+## Key Concepts
+
+- **Game:** The top-level library scope.
+- **Session:** A specific adventure, chapter, or play project within a game.
+- **Scene:** A saved audio configuration for a particular moment.
+- **Bank:** A collection of one audio category within a scene: music, ambience, or SFX.
+- **Scene automation:** Audio that starts automatically when entering a scene.
+
+## Development and Verification
+
+After changing the server source, run at least a Python syntax check:
 
 ```bash
-python soundboard-server.py
+python3 -m py_compile soundboard-server.py
 ```
 
-Open `http://127.0.0.1:8000` locally. For another device on the same network, open `http://<server-ip>:8000`.
-
-Check the server with:
-
-```bash
-curl http://127.0.0.1:8000/api/health
-```
-
-## Configuration
-
-The server accepts environment variables from `.env` and equivalent command-line flags:
-
-| Variable | Default | Purpose |
-|---|---:|---|
-| `SOUNDBOARD_GAMES_DIR` | `./library` | Root folder containing game libraries |
-| `SOUNDBOARD_DB` | `./soundboard.db` | SQLite database path |
-| `SOUNDBOARD_UI_DIR` | `./ui-dist` | Folder containing `index.html` and the `locale/` directory |
-| `SOUNDBOARD_HOST` | `0.0.0.0` | Network bind address |
-| `SOUNDBOARD_PORT` | `8000` | HTTP port |
-| `SOUNDBOARD_LANGUAGE` | `en` | Default UI language; must match a file in `locale/` |
-| `SOUNDBOARD_ADMIN_TOKEN` | empty | Protects write endpoints when set |
-| `SOUNDBOARD_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins |
-| `SOUNDBOARD_LOG_FILE` | empty | Optional rotating log file |
-| `SOUNDBOARD_WRITE_RATE_LIMIT` | `60` | Maximum writes per client per minute |
-
-## Operational and security notes
-
-- This is designed for trusted LAN use, not as a public internet-facing service.
-- Set `SOUNDBOARD_ADMIN_TOKEN` before exposing the server beyond a trusted local network.
-- Replace the development CORS value `*` with exact origins in production.
-- Use HTTPS and a reverse proxy if the service must cross an untrusted network.
-- Back up `soundboard.db` and the `library/` directory together.
-- Audio files are scanned lazily and the scan result is cached briefly; after adding files, reload the UI or wait for the cache to refresh.
-- Browser autoplay policies require a user interaction. Click **Enable audio** before playback.
-- Keep `.env`, the SQLite database, logs, and audio libraries out of version control unless there is a deliberate reason to publish them.
-
-## API overview
-
-- `GET /api/health` — database and scan status
-- `GET /api/games` — available games
-- `POST /api/games` — create a game folder
-- `GET /api/library?game_id=<id>` — list scanned audio assets
-- `GET /api/scenes?game_id=<id>` — list scenes
-- `POST /api/scenes` — create or update a scene
-- `PATCH /api/scenes/<scene_id>/order` — reorder a scene
-- `DELETE /api/scenes/<scene_id>` — delete a scene
-- `GET /api/sessions?game_id=<id>` — list sessions
-- `POST /api/sessions` — create a session
-- `GET /api/stream/<game_id>/<bucket>/<path>` — stream an audio asset
-
-FastAPI also exposes interactive API documentation at `/docs` while the server is running.
-
-## Development
-
-Run the server with reload enabled during development:
-
-```bash
-uvicorn soundboard_server:app --reload
-```
-
-Because the application is currently implemented in `soundboard-server.py`, the simplest reliable development command remains:
-
-```bash
-python soundboard-server.py
-```
-
-Before publishing, consider adding automated tests for asset scanning, path traversal protection, scene validation, session isolation, and API authentication.
-
-## License
-
-No license has been selected yet. Add a `LICENSE` file before distributing the project publicly.
+Also test the HTML UI in a current browser, especially after changes to audio events, scene changes, and hotkeys.
