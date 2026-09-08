@@ -160,6 +160,11 @@ def init_db(db_path: Path) -> None:
           tags_json TEXT NOT NULL,
           music_bank_json TEXT NOT NULL,
           current_music TEXT,
+          auto_music TEXT,
+          music_auto_start INTEGER NOT NULL DEFAULT 0,
+          ambience_auto_start INTEGER NOT NULL DEFAULT 0,
+          sfx_auto_start INTEGER NOT NULL DEFAULT 0,
+          sfx_auto_pad_ids_json TEXT NOT NULL DEFAULT '[]',
           ambience_bank_json TEXT NOT NULL,
           sfx_bank_json TEXT NOT NULL,
           scene_order INTEGER NOT NULL DEFAULT 0,
@@ -196,6 +201,11 @@ def init_db(db_path: Path) -> None:
     for column_sql in (
         "ALTER TABLE scenes ADD COLUMN scene_order INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE scenes ADD COLUMN group_color TEXT",
+        "ALTER TABLE scenes ADD COLUMN auto_music TEXT",
+        "ALTER TABLE scenes ADD COLUMN music_auto_start INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE scenes ADD COLUMN ambience_auto_start INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE scenes ADD COLUMN sfx_auto_start INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE scenes ADD COLUMN sfx_auto_pad_ids_json TEXT NOT NULL DEFAULT '[]'",
     ):
         try:
             conn.execute(column_sql)
@@ -602,6 +612,11 @@ def make_app(
             "tags": json.loads(r["tags_json"]),
             "musicBank": json.loads(r["music_bank_json"]),
             "currentMusic": r["current_music"],
+            "autoMusic": r["auto_music"],
+            "musicAutoStart": bool(r["music_auto_start"]) or bool(r["auto_music"]),
+            "ambienceAutoStart": bool(r["ambience_auto_start"]) or any(item.get("startOnEnter") for item in json.loads(r["ambience_bank_json"]) if isinstance(item, dict)),
+            "sfxAutoStart": bool(r["sfx_auto_start"]) or any(item.get("startOnEnter") for item in json.loads(r["sfx_bank_json"]) if isinstance(item, dict)),
+            "sfxSceneStartIds": json.loads(r["sfx_auto_pad_ids_json"] or "[]"),
             "ambienceBank": json.loads(r["ambience_bank_json"]),
             "sfxBank": json.loads(r["sfx_bank_json"]),
             "order": r["scene_order"] if "scene_order" in r.keys() else 0,
@@ -662,6 +677,24 @@ def make_app(
             if current_music not in music_bank:
                 raise HTTPException(status_code=422, detail={"code": "invalid_current_music", "message": "currentMusic muss in musicBank enthalten sein."})
 
+        def _bool_field(value: Any, field: str, default: bool = False) -> bool:
+            if value is None:
+                return default
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)) and value in (0, 1):
+                return bool(value)
+            raise HTTPException(status_code=422, detail={"code": "invalid_field", "field": field, "message": "Muss boolesch sein."})
+
+        music_auto_start = _bool_field(payload.get("musicAutoStart"), "musicAutoStart")
+        ambience_auto_start = _bool_field(payload.get("ambienceAutoStart"), "ambienceAutoStart")
+        sfx_auto_start = _bool_field(payload.get("sfxAutoStart"), "sfxAutoStart")
+        sfx_scene_start_ids = payload.get("sfxSceneStartIds", [item.get("assetId") for item in sfx_bank if item.get("sceneStart")])
+        sfx_scene_start_ids = _json_list(sfx_scene_start_ids, "sfxSceneStartIds")
+        if any(item not in sfx_ids for item in sfx_scene_start_ids):
+            raise HTTPException(status_code=422, detail={"code": "invalid_sfx_scene_start", "message": "sfxSceneStartIds muss in sfxBank enthalten sein."})
+        auto_music = current_music if music_auto_start and current_music else (music_bank[0] if music_auto_start and music_bank else None)
+
         session_id = payload.get("session_id")
         try:
             scene_order = int(payload.get("order", 0))
@@ -674,9 +707,9 @@ def make_app(
 
         conn.execute(
             """
-            INSERT INTO scenes (id, game_id, session_id, title, scene_group, group_color, tags_json, music_bank_json, current_music,
-                                ambience_bank_json, sfx_bank_json, scene_order, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            INSERT INTO scenes (id, game_id, session_id, title, scene_group, group_color, tags_json, music_bank_json, current_music, auto_music,
+                                music_auto_start, ambience_auto_start, sfx_auto_start, sfx_auto_pad_ids_json, ambience_bank_json, sfx_bank_json, scene_order, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
             ON CONFLICT(id) DO UPDATE SET
               game_id=excluded.game_id,
               session_id=excluded.session_id,
@@ -686,6 +719,11 @@ def make_app(
               tags_json=excluded.tags_json,
               music_bank_json=excluded.music_bank_json,
               current_music=excluded.current_music,
+              auto_music=excluded.auto_music,
+              music_auto_start=excluded.music_auto_start,
+              ambience_auto_start=excluded.ambience_auto_start,
+              sfx_auto_start=excluded.sfx_auto_start,
+              sfx_auto_pad_ids_json=excluded.sfx_auto_pad_ids_json,
               ambience_bank_json=excluded.ambience_bank_json,
               sfx_bank_json=excluded.sfx_bank_json,
               scene_order=excluded.scene_order,
@@ -701,6 +739,11 @@ def make_app(
                 json.dumps(tags, ensure_ascii=False),
                 json.dumps(music_bank, ensure_ascii=False),
                 current_music,
+                auto_music,
+                int(music_auto_start),
+                int(ambience_auto_start),
+                int(sfx_auto_start),
+                json.dumps(sfx_scene_start_ids, ensure_ascii=False),
                 json.dumps(ambience_bank, ensure_ascii=False),
                 json.dumps(sfx_bank, ensure_ascii=False),
                 scene_order,
@@ -804,11 +847,11 @@ def make_app(
             for scene in rows:
                 conn.execute("""
                     INSERT INTO scenes (id, game_id, session_id, title, scene_group, tags_json, music_bank_json,
-                                        current_music, ambience_bank_json, sfx_bank_json, updated_at)
+                                        current_music, auto_music, ambience_bank_json, sfx_bank_json, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
                 """, (
                     uuid.uuid4().hex, scene["game_id"], new_id, scene["title"], scene["scene_group"],
-                    scene["tags_json"], scene["music_bank_json"], scene["current_music"],
+                    scene["tags_json"], scene["music_bank_json"], scene["current_music"], scene["auto_music"],
                     scene["ambience_bank_json"], scene["sfx_bank_json"],
                 ))
             conn.commit()

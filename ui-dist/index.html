@@ -38,6 +38,16 @@
     .dialogBackdrop { background: rgba(2,6,23,.72); }
     .setupField { margin-top: .75rem; }
     .setupField:focus { outline: 1px solid rgba(52,211,153,.8); outline-offset: 2px; box-shadow: 0 0 0 2px rgba(52,211,153,.12); }
+    .playlistChevron { display: block; width: .58rem; height: .58rem; border-top: 2px solid currentColor; border-right: 2px solid currentColor; }
+    .playlistChevronPrev { transform: rotate(-135deg); margin-left: .18rem; }
+    .playlistChevronNext { transform: rotate(45deg); margin-right: .18rem; }
+    /* Doppeltes, gegensinnig gespiegelt ausgerichtetes Play-Symbol. */
+    .automationGlyph { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: .8rem; gap: .08rem; flex: 0 0 auto; color: currentColor; }
+    .automationGlyph::before,
+    .automationGlyph::after { content: ''; display: block; width: 0; height: 0; border-top: .24rem solid transparent; border-bottom: .24rem solid transparent; border-left: .31rem solid currentColor; }
+    .automationGlyph::after { transform: scaleX(-1); }
+    .automationGlyph::before { transform: none; }
+    .automationGlyphMuted { opacity: .72; }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100">
@@ -76,6 +86,14 @@
         builder: 'Spiel zusammenstellen', closeBuilder: 'Zusammenstellung schließen',
         music: 'Musik', ambience: 'Ambience', sfx: 'SFX',
         audioEnable: 'Audio aktivieren', audioActive: 'Audio aktiv', audioLocked: 'Audio gesperrt',
+        playbackMode: 'Wiedergabemodus', playbackStopped: 'Wiedergabe aus', playbackScene: 'Aktive Szene abspielen', playbackAuto: 'Szenen automatisch abspielen',
+        playbackStoppedHint: 'Keine Sounds werden automatisch gestartet.', playbackSceneHint: 'Szenenwechsel stoppt die Wiedergabe.', playbackAutoHint: 'Szenenwechsel startet die festgelegten Sounds.',
+        sceneChangeStart: 'Beim Szenenwechsel starten', sceneChangeStartShort: 'Beim Szenenwechsel', sceneChangeStartHint: 'Diesen Sound beim Wechsel in diese Szene starten.', sceneAutomationConfigured: 'Automatische Sounds eingerichtet',
+        musicSceneStart: 'Playlist beim Szenenwechsel starten', musicSceneStartHint: 'Die Playlist beim Wechsel in diese Szene von vorne starten.', ambienceSceneStart: 'Ausgewählte Layer beim Szenenwechsel starten', ambienceSceneStartHint: 'Alle eingeschalteten Layer gemeinsam starten.', sfxSceneStart: 'Markierte SFX beim Szenenwechsel starten', sfxSceneStartHint: 'Nur markierte Pads automatisch auslösen.', sceneStartMarker: 'Für Szenenwechsel markiert', sceneStartMarkerShort: 'Startet bei Szenenwechsel', playlistPlay: 'Playlist abspielen', playlistPause: 'Playlist pausieren', selectTrack: 'Titel auswählen', playlistPrevious: 'Vorheriger Titel', playlistNext: 'Nächster Titel', moveTrackUp: 'Titel nach oben', moveTrackDown: 'Titel nach unten',
+        audioModeStopped: 'Wiedergabe aus', audioModeScene: 'Szenenwiedergabe', audioModeAuto: 'Szenenautomatik',
+        audioModeStoppedHint: 'Global gestoppt', audioModeSceneHint: 'Aktive Szene läuft; Szenenwechsel stoppt', audioModeAutoHint: 'Aktive Szene läuft; Szenenwechsel startet Vorgaben',
+        audioModeAria: 'Wiedergabemodus', startOnSceneChange: 'Beim Szenenwechsel starten', startSceneMusic: 'Musik beim Szenenwechsel', startSceneSfx: 'SFX beim Szenenwechsel',
+        sceneHasAutomation: 'Automatische Wiedergabe eingerichtet', playbackFirst: 'Aktiviere zuerst die Wiedergabe.',
         newShort: '+ Neu',
         connected: 'Verbunden', disconnected: 'Getrennt', master: 'MASTER',
         ready: 'bereit', off: 'aus', playing: 'spielt', loadingShort: 'lädt…', unavailable: 'nicht verfügbar', available: 'bereit', notLoaded: 'nicht geladen',
@@ -106,6 +124,14 @@
         builder: 'Build game', closeBuilder: 'Close builder',
         music: 'Music', ambience: 'Ambience', sfx: 'SFX',
         audioEnable: 'Enable audio', audioActive: 'Audio active', audioLocked: 'Audio locked',
+        playbackMode: 'Playback mode', playbackStopped: 'Playback off', playbackScene: 'Play active scene', playbackAuto: 'Play scenes automatically',
+        playbackStoppedHint: 'No sounds start automatically.', playbackSceneHint: 'Scene changes stop playback.', playbackAutoHint: 'Scene changes start the selected sounds.',
+        sceneChangeStart: 'Start on scene change', sceneChangeStartShort: 'On scene change', sceneChangeStartHint: 'Start this sound when entering this scene.', sceneAutomationConfigured: 'Automatic sounds configured',
+        musicSceneStart: 'Start playlist on scene change', musicSceneStartHint: 'Start the playlist from the beginning when entering this scene.', ambienceSceneStart: 'Start selected layers on scene change', ambienceSceneStartHint: 'Start all enabled layers together.', sfxSceneStart: 'Start marked SFX on scene change', sfxSceneStartHint: 'Only trigger pads marked for scene changes.', sceneStartMarker: 'Marked for scene changes', sceneStartMarkerShort: 'Starts on scene change', playlistPlay: 'Play playlist', playlistPause: 'Pause playlist', selectTrack: 'Select track', playlistPrevious: 'Previous track', playlistNext: 'Next track', moveTrackUp: 'Move track up', moveTrackDown: 'Move track down',
+        audioModeStopped: 'Playback off', audioModeScene: 'Scene playback', audioModeAuto: 'Scene automation',
+        audioModeStoppedHint: 'Globally stopped', audioModeSceneHint: 'Active scene plays; scene change stops', audioModeAutoHint: 'Active scene plays; scene change starts presets',
+        audioModeAria: 'Playback mode', startOnSceneChange: 'Start on scene change', startSceneMusic: 'Start music on scene change', startSceneSfx: 'Start SFX on scene change',
+        sceneHasAutomation: 'Automatic playback configured', playbackFirst: 'Enable playback first.',
         newShort: '+ New',
         connected: 'Connected', disconnected: 'Disconnected', master: 'MASTER',
         ready: 'ready', off: 'off', playing: 'playing', loadingShort: 'loading…', unavailable: 'unavailable', available: 'ready', notLoaded: 'not loaded',
@@ -219,6 +245,7 @@
       ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null, dialogAssetQuery: '', dialogAssetBucket: 'Alle' },
       audio: {
         unlocked: false,
+        playbackMode: 'stopped', // stopped | scene | auto
         ctx: null,
         master: { gain: null, db: -10, saveTimer: null },
         buses: {
@@ -465,7 +492,7 @@
       }, duck.releaseMs);
     }
 
-    function stopAllAudio({ panicStop=false } = {}) {
+    function stopAllAudio({ panicStop=false, fadeSec=null } = {}) {
       // Stopping all audio also turns every ambience layer off in the scene
       // model, so the toggle buttons cannot remain visually active.
       const sc = activeScene();
@@ -484,7 +511,7 @@
         return;
       }
       const ctx = state.audio.ctx;
-      const fade = panicStop ? 0.01 : 0.5;
+      const fade = panicStop ? 0.01 : (fadeSec == null ? 0.5 : fadeSec);
       const current = state.audio.music.node;
       state.audio.music.node = null;
       state.audio.music.status = 'idle';
@@ -510,6 +537,102 @@
     // ---------------------- Legacy state block removed ----------------------
 
     // ---------------------- Audio Engine ----------------------
+    function playbackIsRunning() {
+      return state.audio.playbackMode !== 'stopped';
+    }
+
+    function normalizeSceneAutomation(sc) {
+      if (!sc) return sc;
+      // Migrate the former per-item controls once, while keeping the old
+      // fields harmless for older saved scenes and older server responses.
+      if (typeof sc.musicAutoStart !== 'boolean') sc.musicAutoStart = Boolean(sc.autoMusic);
+      if (typeof sc.ambienceAutoStart !== 'boolean') sc.ambienceAutoStart = (sc.ambienceBank || []).some(layer => layer.startOnEnter);
+      if (typeof sc.sfxAutoStart !== 'boolean') sc.sfxAutoStart = (sc.sfxBank || []).some(pad => pad.startOnEnter);
+      for (const layer of (sc.ambienceBank || [])) delete layer.startOnEnter;
+      for (const pad of (sc.sfxBank || [])) {
+        if (typeof pad.sceneStart !== 'boolean') pad.sceneStart = Boolean(pad.startOnEnter);
+        delete pad.startOnEnter;
+      }
+      syncSfxAutomation(sc);
+      return sc;
+    }
+
+    // The SFX bank is active exactly when at least one pad is marked for
+    // automatic start. This keeps the bank switch and its pad markers in sync.
+    function syncSfxAutomation(sc, { bankChanged = false } = {}) {
+      if (!sc) return sc;
+      const pads = Array.isArray(sc.sfxBank) ? sc.sfxBank : [];
+      if (bankChanged && sc.sfxAutoStart === false) {
+        for (const pad of pads) pad.sceneStart = false;
+      }
+      sc.sfxAutoStart = pads.some(pad => pad.sceneStart === true);
+      return sc;
+    }
+
+    function scenePresetParts(sc, { strict = false } = {}) {
+      if (!sc) return { musicId: null, ambience: [], sfx: [] };
+      normalizeSceneAutomation(sc);
+      // Strict scene automation starts the playlist at its first entry.
+      // Ambience bank membership is the scene selection; layer.on remains the
+      // live mixer toggle used while the scene is running.
+      const musicId = (strict ? sc.musicAutoStart : true)
+        ? (strict ? (sc.musicBank?.[0] || null) : (sc.currentMusic || sc.musicBank?.[0] || null))
+        : null;
+      const ambience = (strict ? sc.ambienceAutoStart : true)
+        ? (strict ? (sc.ambienceBank || []) : (sc.ambienceBank || []).filter(layer => layer.on))
+        : [];
+      const sfx = strict && sc.sfxAutoStart
+        ? (sc.sfxBank || []).filter(pad => pad.sceneStart)
+        : [];
+      return { musicId, ambience, sfx };
+    }
+
+    async function startScenePreset(sc, { strict = false } = {}) {
+      if (!sc || !playbackIsRunning() || !state.audio.unlocked) return;
+      const preset = scenePresetParts(sc, { strict });
+      preloadSfxForScene(sc);
+      // playMusic always creates one playlist node, so music can never stack.
+      if (preset.musicId) await playMusic(preset.musicId);
+      let ambienceChanged = false;
+      for (const layer of preset.ambience) {
+        if (!layer.on) { layer.on = true; ambienceChanged = true; }
+        await setAmbienceLayer(layer.assetId, true, layer.volDb, layer.fadeSec);
+      }
+      if (ambienceChanged) await saveScene(sc, { quiet: true });
+      for (const pad of preset.sfx) triggerSfx(pad.assetId);
+    }
+
+    async function setPlaybackMode(mode) {
+      const valid = ['stopped', 'scene', 'auto'];
+      if (!valid.includes(mode)) return;
+      if (mode === 'stopped') {
+        state.audio.playbackMode = 'stopped';
+        stopAllAudio({ panicStop: false, fadeSec: 0.15 });
+        render();
+        return;
+      }
+      try {
+        const ctx = ensureAudio();
+        if (ctx.state !== 'running') await ctx.resume();
+        const previous = state.audio.playbackMode;
+        state.audio.unlocked = true;
+        state.audio.playbackMode = mode;
+        // The first global start behaves exactly like entering the active scene:
+        // only bank-level scene automation markers may start audio.
+        if (previous === 'stopped') await startScenePreset(activeScene(), { strict: true });
+        render();
+      } catch (error) {
+        state.audio.playbackMode = 'stopped';
+        toast(t('musicStartFailed'), 'warn');
+      }
+    }
+
+    function cyclePlaybackMode() {
+      const modes = ['stopped', 'scene', 'auto'];
+      const current = modes.indexOf(state.audio.playbackMode);
+      setPlaybackMode(modes[(current + 1) % modes.length]);
+    }
+
     function ensureAudio() {
       if (state.audio.ctx) return state.audio.ctx;
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -530,27 +653,7 @@
     }
 
     async function unlockAudio() {
-      const ctx = ensureAudio();
-      if (ctx.state !== 'running') await ctx.resume();
-      state.audio.unlocked = true;
-      toast(t('audioActivated'), 'ok');
-      // Resume all audio choices that were made before the WebAudio context
-      // was unlocked. Ambience is scene-driven; armed music starts the playlist.
-      const sc = activeScene();
-      if (sc) {
-        const desired = (sc.ambienceBank || []).filter(layer => layer.on);
-        for (const layer of desired) {
-          setAmbienceLayer(layer.assetId, true, layer.volDb, layer.fadeSec).catch(() => {});
-        }
-        if (state.audio.music.armed && (sc.musicBank || []).length) {
-          playMusic(sc.currentMusic || sc.musicBank[0]);
-        }
-      }
-      // Preload SFX for the currently selected scene
-      preloadSfxForScene(activeScene());
-      // Plus: preload session "hot" SFX pads (if any)
-      preloadHotSessionSfx();
-      render();
+      await setPlaybackMode(state.audio.playbackMode === 'stopped' ? 'scene' : state.audio.playbackMode);
     }
 
     async function preloadHotSessionSfx() {
@@ -620,6 +723,7 @@
 
     async function playMusic(assetId) {
       if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      if (!playbackIsRunning()) { toast(t('playbackFirst'), 'warn'); return; }
       const ctx = ensureAudio();
       const asset = (state.library?.Musik || []).find(a => a.id === assetId);
       if (!asset) {
@@ -665,7 +769,7 @@
         if (audioEl.loop || state.audio.music.node?.audioEl !== audioEl) return;
 
         const sc = activeScene();
-        const bank = sc?.musicBank || [];
+        const bank = playlistIds(sc);
         const currentIndex = bank.indexOf(assetId);
         const nextAssetId = currentIndex >= 0 ? bank[currentIndex + 1] : null;
 
@@ -694,7 +798,6 @@
     }
 
     function toggleMusic(assetId) {
-      state.audio.music.armed = true;
       if (!state.audio.unlocked) {
         const sc = activeScene();
         if (sc) sc.currentMusic = assetId;
@@ -737,6 +840,7 @@
 
     async function setAmbienceLayer(assetId, on, volDb, fadeSec) {
       if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      if (!playbackIsRunning()) { toast(t('playbackFirst'), 'warn'); return; }
       const ctx = ensureAudio();
       const asset = (state.library?.Ambience || []).find(a => a.id === assetId);
       if (!asset) return;
@@ -949,6 +1053,7 @@
 
     function triggerSfx(assetId) {
       if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
+      if (!playbackIsRunning()) { toast(t('playbackFirst'), 'warn'); return; }
       const ctx = ensureAudio();
       const cached = state.audio.sfx.cache.get(assetId);
       if (!cached) {
@@ -970,13 +1075,15 @@
     }
 
     function stopAudio() {
-      if (!state.audio.ctx) { toast(t('audioNotActive'), 'warn'); return; }
+      state.audio.playbackMode = 'stopped';
+      if (!state.audio.ctx) { render(); toast(t('audioNotActive'), 'warn'); return; }
       stopAllAudio({ panicStop: false });
       toast(t('audioFadeStopped'), 'ok');
     }
 
     function panic() {
-      if (!state.audio.ctx) { toast(t('audioNotActive'), 'warn'); return; }
+      state.audio.playbackMode = 'stopped';
+      if (!state.audio.ctx) { render(); toast(t('audioNotActive'), 'warn'); return; }
       stopAllAudio({ panicStop: true });
       toast(t('emergencyStopped'), 'warn');
     }
@@ -1000,6 +1107,14 @@
       let hash = 0;
       for (const char of String(group || 'Allgemein')) hash = ((hash << 5) - hash) + char.charCodeAt(0);
       return colors[Math.abs(hash) % colors.length];
+    }
+
+    function renderAutomationGlyph({ muted = false } = {}) {
+      return el('span', { class: `automationGlyph${muted ? ' automationGlyphMuted' : ''}`, 'aria-hidden': 'true' });
+    }
+
+    function sceneAutomationSummary(scene) {
+      return Boolean(scene?.musicAutoStart || scene?.ambienceAutoStart || scene?.sfxAutoStart);
     }
 
     function groupNames() { return [...new Set(state.scenes.map(s => s.group || 'Allgemein'))].sort((a,b) => a.localeCompare(b)); }
@@ -1093,6 +1208,10 @@
         tags: [],
         musicBank: [],
         currentMusic: null,
+        autoMusic: null, // legacy compatibility
+        musicAutoStart: false,
+        ambienceAutoStart: false,
+        sfxAutoStart: false,
         ambienceBank: [],
         sfxBank: [],
         sfxPadSize: 'large',
@@ -1167,7 +1286,7 @@
         state.scenes = (scenesRes.scenes || []).filter(scene =>
           scene.game_id === state.activeGameId &&
           (!state.activeSessionId || scene.session_id === state.activeSessionId)
-        );
+        ).map(normalizeSceneAutomation);
         state.activeSceneId = state.scenes[0]?.id || null;
       } catch (e) {
         state.connected = false;
@@ -1188,41 +1307,25 @@
       const libRes = await API.library(state.activeGameId, state.activeSessionId);
       state.library = libRes.library;
       const scenesRes = await API.scenes(state.activeGameId, state.activeSessionId);
-      state.scenes = scenesRes.scenes || [];
+      state.scenes = (scenesRes.scenes || []).map(normalizeSceneAutomation);
       state.activeSceneId = state.scenes[0]?.id || null;
       state.ui.selectedSessionAssets = new Set();
     }
 
     // ---------------------- Scene activation (apply audio state) ----------------------
     async function activateScene(sceneId) {
-      // Clicking the already active scene must be a no-op. In particular, do
-      // not restart the current music track or playlist from the beginning.
+      // Selecting the active scene is intentionally a no-op.
       if (String(sceneId) === String(state.activeSceneId)) return;
-      // Stop the previous scene's music before switching. Music is an explicit
-      // scene action and must never leak into, or appear active in, another scene.
-      if (state.audio.music.node) stopMusic();
+      const previousMode = state.audio.playbackMode;
+      stopAllAudio({ panicStop: false, fadeSec: 0.08 });
       state.activeSceneId = sceneId;
       render();
       const sc = activeScene();
-      if (!sc || !state.audio.unlocked) return;
+      if (!sc || !state.audio.unlocked || previousMode === 'stopped') return;
 
-      // Preload SFX for the new scene, but do not start its music bank
-      // automatically. Music starts only when the user presses Start.
       preloadSfxForScene(sc);
-
-      // ambience: set desired
-      const desired = new Map(sc.ambienceBank.filter(l => l.on).map(l => [l.assetId, l]));
-      // stop those not desired
-      for (const id of Array.from(state.audio.ambience.nodes.keys())) {
-        if (!desired.has(id)) {
-          const prevLayer = sc.ambienceBank.find(x => x.assetId === id);
-          await setAmbienceLayer(id, false, prevLayer?.volDb ?? -20, prevLayer?.fadeSec ?? 3);
-        }
-      }
-      // start desired
-      for (const [id, l] of desired) {
-        await setAmbienceLayer(id, true, l.volDb, l.fadeSec);
-      }
+      if (previousMode === 'auto') await startScenePreset(sc, { strict: true });
+      // In scene mode playback is deliberately stopped after a scene change.
     }
 
     // ---------------------- UI actions: edit banks ----------------------
@@ -1240,6 +1343,7 @@
       if (!sc) return;
       sc.musicBank = sc.musicBank.filter(id => id !== assetId);
       if (sc.currentMusic === assetId) sc.currentMusic = sc.musicBank[0] || null;
+      if (sc.currentMusic === null) sc.musicAutoStart = false;
       saveScene(sc, { quiet: true });
       render();
     }
@@ -1258,7 +1362,7 @@
       if (!sc) return;
       if (sc.sfxBank.some(p => p.assetId === assetId)) return;
       const idx = sc.sfxBank.length;
-      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '' });
+      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '', sceneStart: false });
       saveScene(sc, { quiet: true });
       render();
     }
@@ -1667,6 +1771,25 @@
       ]);
     }
 
+    function renderPlaybackToggle() {
+      const mode = state.audio.playbackMode;
+      const info = mode === 'stopped'
+        ? { label: t('playbackStopped'), hint: t('playbackStoppedHint'), cls: 'btn text-slate-300' }
+        : mode === 'scene'
+          ? { label: t('playbackScene'), hint: t('playbackSceneHint'), cls: 'bg-amber-500/90 border-amber-300 text-amber-950' }
+          : { label: t('playbackAuto'), hint: t('playbackAutoHint'), cls: 'bg-emerald-500/90 border-emerald-300 text-emerald-950' };
+      return el('button', {
+        class: `px-3 py-2 rounded-lg border text-sm font-semibold transition flex items-center gap-2 ${info.cls}`,
+        onClick: cyclePlaybackMode,
+        title: `${info.label}: ${info.hint}`,
+        'aria-label': `${t('audioModeAria')}: ${info.label}. ${info.hint}`,
+        'aria-pressed': mode !== 'stopped'
+      }, [
+        renderAutomationGlyph({ muted: mode === 'stopped' }),
+        el('span', { text: info.label })
+      ]);
+    }
+
     function render() {
       const focusState = captureFocusState();
       const root = $('#app');
@@ -1719,7 +1842,7 @@
               // Admin token (optional): sent as X-Admin-Token
               el('input', { class: 'w-44 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm kmono', placeholder: 'Admin Token', value: ADMIN_TOKEN, onInput: (e) => { ADMIN_TOKEN = e.target.value || ''; } }),
 
-              !state.audio.unlocked ? el('button', { class: 'px-3 py-2 rounded-lg btnPrimary text-sm font-semibold transition', onClick: unlockAudio, text: t('audioEnable') }) : null,
+              renderPlaybackToggle(),
 
               el('button', { class: 'px-3 py-2 rounded-lg btn text-sm font-semibold transition', onClick: stopAudio, text: t('fadeStop'), title: t('fadeAudioOut') }),
               el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-sm font-semibold transition shadow-glow', onClick: panic, text: t('emergencyStop'), title: t('muteAudio') })
@@ -1757,6 +1880,7 @@
           el('div', { class: 'flex items-center gap-2 flex-wrap min-w-0' }, [
             el('select', { class: 'flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', onChange: async (e) => {
               stopAllAudio({ panicStop: false });
+              state.audio.playbackMode = 'stopped';
               state.activeSessionId = e.target.value || null;
               try {
                 if (state.activeSessionId) {
@@ -1847,6 +1971,7 @@
                 }, [
                   el('div', { class: 'flex items-center justify-between gap-2' }, [
                     el('span', { class: 'font-semibold text-sm truncate', text: item.title }),
+                    sceneAutomationSummary(item) ? el('span', { class: 'inline-flex h-5 w-5 shrink-0 items-center justify-center text-emerald-300', title: t('sceneAutomationConfigured'), 'aria-label': t('sceneAutomationConfigured') }, [renderAutomationGlyph()]) : null,
                     el('span', { class: 'flex items-center gap-1 shrink-0' }, [
                       el('button', { class: 'px-1.5 py-0.5 rounded text-[10px] hover:bg-slate-700', title: t('moveUp'), text: '↑', onClick: async (e) => { e.stopPropagation(); await reorderSceneWithinGroup(item, -1); } }),
                       el('button', { class: 'px-1.5 py-0.5 rounded text-[10px] hover:bg-slate-700', title: t('moveDown'), text: '↓', onClick: async (e) => { e.stopPropagation(); await reorderSceneWithinGroup(item, 1); } }),
@@ -1915,6 +2040,92 @@
       }
     }
 
+    function bankAutomationControl(sc, kind) {
+      normalizeSceneAutomation(sc);
+      const config = {
+        music: { field: 'musicAutoStart', label: t('musicSceneStart'), hint: t('musicSceneStartHint') },
+        ambience: { field: 'ambienceAutoStart', label: t('ambienceSceneStart'), hint: t('ambienceSceneStartHint') },
+        sfx: { field: 'sfxAutoStart', label: t('sfxSceneStart'), hint: t('sfxSceneStartHint') },
+      }[kind];
+      const enabled = !!sc[config.field];
+      return el('button', {
+        type: 'button',
+        class: `flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition ${enabled ? 'border-emerald-500/60 bg-emerald-950/40 text-emerald-200' : 'border-slate-700 bg-slate-950/50 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`,
+        title: `${config.label}. ${config.hint}`,
+        'aria-label': `${config.label}: ${enabled ? t('on') : t('off')}`,
+        'aria-pressed': enabled,
+        onClick: async (e) => {
+          e.stopPropagation();
+          sc[config.field] = !enabled;
+          if (kind === 'sfx') syncSfxAutomation(sc, { bankChanged: true });
+          await saveScene(sc, { quiet: true });
+          render();
+        }
+      }, [
+        el('span', { class: `relative inline-flex h-5 w-9 shrink-0 rounded-full transition ${enabled ? 'bg-emerald-500' : 'bg-slate-700'}`, 'aria-hidden': 'true' }, [
+          el('span', { class: `absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}` })
+        ]),
+        el('span', { class: 'text-[11px] font-semibold whitespace-nowrap', text: config.label })
+      ]);
+    }
+
+    function playlistIds(sc = activeScene()) {
+      return Array.isArray(sc?.musicBank) ? sc.musicBank : [];
+    }
+
+    async function jumpPlaylist(direction) {
+      const sc = activeScene();
+      const ids = playlistIds(sc);
+      if (!ids.length) return;
+      const currentId = state.audio.music.node?.assetId || sc.currentMusic || ids[0];
+      const currentIndex = Math.max(0, ids.indexOf(currentId));
+      let targetIndex;
+      if (direction > 0 && currentIndex >= ids.length - 1) {
+        // Manual next follows the same wrap-around rule as automatic playlist playback.
+        targetIndex = state.audio.music.loopMode === 'playlist' ? 0 : ids.length - 1;
+      } else {
+        targetIndex = Math.min(ids.length - 1, Math.max(0, currentIndex + direction));
+      }
+      const nextId = ids[targetIndex];
+      sc.currentMusic = nextId;
+      await saveScene(sc, { quiet: true });
+      if (state.audio.unlocked && playbackIsRunning()) await playMusic(nextId);
+      else render();
+    }
+
+    async function moveMusicTrack(assetId, direction) {
+      const sc = activeScene();
+      if (!sc?.musicBank) return;
+      const index = sc.musicBank.indexOf(assetId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= sc.musicBank.length) return;
+      const [moved] = sc.musicBank.splice(index, 1);
+      sc.musicBank.splice(target, 0, moved);
+      await saveScene(sc, { quiet: true });
+      render();
+    }
+
+    function togglePlaylistPlayback() {
+      const current = state.audio.music.node;
+      if (current && !current.audioEl.paused) {
+        current.audioEl.pause();
+        state.audio.music.status = 'paused';
+        render();
+        return;
+      }
+      if (current && current.audioEl.paused && current.audioEl.currentTime > 0) {
+        current.audioEl.play().then(() => { state.audio.music.status = 'playing'; render(); }).catch(() => toast(t('musicResumeFailed'), 'warn'));
+        return;
+      }
+      const sc = activeScene();
+      const id = sc?.musicBank?.[0];
+      if (id) {
+        sc.currentMusic = id;
+        saveScene(sc, { quiet: true });
+        playMusic(id);
+      }
+    }
+
     function renderMusicCard(sc) {
       const cur = state.audio.music.node;
       const curName = cur ? (state.library?.Musik || []).find(a => a.id === cur.assetId)?.filename : null;
@@ -1923,12 +2134,28 @@
         el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3' }, [
           el('div', { class: 'flex items-center gap-2' }, [
             el('span', { class: 'font-extrabold', text: t('music') }),
-            el('span', { class: 'text-xs text-slate-400', text: t('playlistCrossfade') })
+            el('span', { class: 'text-xs text-slate-400', text: t('playlistCrossfade') }),
+            el('button', {
+              class: 'w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-extrabold transition ' +
+                (cur && !cur.audioEl.paused ? 'bg-indigo-500 text-white' : 'bg-slate-800 hover:bg-indigo-600 text-slate-200'),
+              title: cur && !cur.audioEl.paused ? t('playlistPause') : t('playlistPlay'),
+              'aria-label': cur && !cur.audioEl.paused ? t('playlistPause') : t('playlistPlay'),
+              onClick: togglePlaylistPlayback
+            }, [
+              cur && !cur.audioEl.paused
+                ? el('span', { class: 'flex items-center gap-1', 'aria-hidden': 'true' }, [
+                    el('span', { class: 'block w-1 h-4 rounded-sm bg-current' }),
+                    el('span', { class: 'block w-1 h-4 rounded-sm bg-current' })
+                  ])
+                : el('span', { class: 'block ml-0.5 w-0 h-0 border-y-[7px] border-y-transparent border-l-[10px] border-l-current', 'aria-hidden': 'true' })
+            ]),
+            bankAutomationControl(sc, 'music')
           ]),
           el('div', { class: 'flex items-center gap-2' }, [
             el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
             el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.music.db, 'data-focus-key': 'music-bus-volume', class: 'w-28 accent-indigo-400', onInput: (e) => setBusDb('music', Number(e.target.value)) }),
             el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.music.db} dB` }),
+            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopMusic')}`, title: t('stopMusic'), 'aria-label': t('stopMusic'), onClick: stopMusic }),
           ])
         ]),
 
@@ -1938,10 +2165,16 @@
               el('div', { class: 'text-[11px] text-slate-400', text: t('nowPlaying') }),
               el('div', { class: 'text-lg font-semibold', text: curName ? curName : '—' }),
             ]),
-            el('div', { class: 'flex items-center gap-2' }, [
+            el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+              el('button', { class: 'w-9 h-9 rounded-full btn flex items-center justify-center text-slate-200 hover:bg-indigo-600', title: t('playlistPrevious'), 'aria-label': t('playlistPrevious'), onClick: () => jumpPlaylist(-1) }, [
+                el('span', { class: 'playlistChevron playlistChevronPrev', 'aria-hidden': 'true' })
+              ]),
               el('span', { class: 'text-[11px] text-slate-400', text: 'Crossfade' }),
-              el('input', { type: 'range', min: 0, max: 20, step: 1, value: state.audio.music.crossfadeSec, class: 'w-40 accent-indigo-400', onInput: (e) => { state.audio.music.crossfadeSec = Number(e.target.value); render(); } }),
+              el('input', { type: 'range', min: 0, max: 20, step: 1, value: state.audio.music.crossfadeSec, class: 'w-32 sm:w-40 accent-indigo-400', onInput: (e) => { state.audio.music.crossfadeSec = Number(e.target.value); render(); } }),
               el('span', { class: 'text-[11px] text-slate-400 w-10 text-right tabular', text: `${state.audio.music.crossfadeSec}s` }),
+              el('button', { class: 'w-9 h-9 rounded-full btn flex items-center justify-center text-slate-200 hover:bg-indigo-600', title: t('playlistNext'), 'aria-label': t('playlistNext'), onClick: () => jumpPlaylist(1) }, [
+                el('span', { class: 'playlistChevron playlistChevronNext', 'aria-hidden': 'true' })
+              ]),
               el('button', {
                 class: 'min-h-9 px-2.5 rounded-lg border text-xs font-bold leading-none transition ' +
                   (state.audio.music.loopMode === 'track'
@@ -1954,7 +2187,6 @@
                 'aria-label': state.audio.music.loopMode === 'track' ? t('loopTrackAria') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylistAria') : t('loopOffAria'),
                 onClick: toggleMusicLoop
               }),
-              el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopMusic')}`, title: t('stopMusic'), 'aria-label': t('stopMusic'), onClick: stopMusic })
             ])
           ]),
 
@@ -1965,26 +2197,20 @@
               const musicPastels = ['rgba(165,180,252,.72)', 'rgba(196,181,253,.72)', 'rgba(147,197,253,.72)', 'rgba(186,230,253,.72)'];
               return el('div', { class: 'flex items-center gap-3 px-4 py-3 ' + (playing ? 'bg-indigo-950/40' : 'hover:bg-slate-900/50'), style: { borderLeft: `3px solid ${musicPastels[index % musicPastels.length]}` } }, [
                 el('button', {
-                  class: 'w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-extrabold transition ' +
-                    (playing ? 'bg-indigo-500 text-white' : 'bg-slate-800 hover:bg-indigo-600 text-slate-200'),
-                  title: playing && state.audio.music.status === 'playing' ? t('pauseMusic') : t('playMusic'),
-                  'aria-label': playing && state.audio.music.status === 'playing' ? t('pauseMusic') : t('playMusic'),
-                  onClick: () => toggleMusic(id)
-                }, [
-                  !state.audio.unlocked && state.audio.music.armed && state.audio.music.node?.assetId !== id
-                    ? el('span', { class: 'text-amber-300 text-lg', text: '◈', 'aria-hidden': 'true' })
-                    : playing && state.audio.music.status === 'playing'
-                    ? el('span', { class: 'flex items-center gap-1', 'aria-hidden': 'true' }, [
-                        el('span', { class: 'block w-1 h-4 rounded-sm bg-current' }),
-                        el('span', { class: 'block w-1 h-4 rounded-sm bg-current' })
-                      ])
-                    : el('span', { class: 'block ml-0.5 w-0 h-0 border-y-[7px] border-y-transparent border-l-[10px] border-l-current', 'aria-hidden': 'true' })
-                ]),
-                el('div', { class: 'flex-1 min-w-0' }, [
+                  class: 'w-2 h-2 shrink-0 rounded-full ' + (playing ? 'bg-indigo-300' : 'bg-slate-600'),
+                  title: t('selectTrack'),
+                  'aria-label': t('selectTrack'),
+                  onClick: async () => { sc.currentMusic = id; await saveScene(sc, { quiet: true }); render(); }
+                }),
+                el('div', { class: 'flex-1 min-w-0 cursor-pointer', onClick: async () => { sc.currentMusic = id; await saveScene(sc, { quiet: true }); render(); } }, [
                   el('div', { class: 'font-medium truncate', text: a ? a.filename : id }),
                   el('div', { class: 'text-[11px] text-slate-500', text: a ? `/${a.rel_path}` : '' })
                 ]),
                 playing && state.audio.music.status === 'playing' ? el('span', { class: 'text-[11px] font-semibold ' + (state.audio.music.loopMode === 'track' ? 'text-amber-300' : state.audio.music.loopMode === 'playlist' ? 'text-emerald-300' : 'text-indigo-300'), text: state.audio.music.loopMode === 'track' ? `↻ ${t('title')}` : state.audio.music.loopMode === 'playlist' ? `↻ ${t('playlist')}` : t('playing'), title: state.audio.music.loopMode === 'track' ? t('loopTrackShort') : state.audio.music.loopMode === 'playlist' ? t('loopPlaylistShort') : t('titlePlaying') }) : el('span', { class: 'text-[11px] text-slate-600', text: state.audio.music.status === 'loading' && state.audio.music.node?.assetId === id ? 'lädt…' : '' }),
+                el('span', { class: 'flex items-center gap-0.5 shrink-0' }, [
+                  el('button', { class: 'w-6 h-6 rounded-md btn text-xs leading-none disabled:opacity-25', text: '↑', title: t('moveTrackUp'), 'aria-label': t('moveTrackUp'), disabled: index === 0, onClick: async (e) => { e.stopPropagation(); await moveMusicTrack(id, -1); } }),
+                  el('button', { class: 'w-6 h-6 rounded-md btn text-xs leading-none disabled:opacity-25', text: '↓', title: t('moveTrackDown'), 'aria-label': t('moveTrackDown'), disabled: index === (sc.musicBank.length - 1), onClick: async (e) => { e.stopPropagation(); await moveMusicTrack(id, 1); } })
+                ]),
                 el('button', { class: 'text-slate-600 hover:text-rose-400 text-xs', text: t('delete'), onClick: () => removeFromMusicBank(id) })
               ]);
             })) : [el('div', { class: 'px-4 py-4 text-sm text-slate-500', text: t('emptyPlaylist') })]
@@ -2007,7 +2233,8 @@
         el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3' }, [
           el('div', { class: 'flex items-center gap-2' }, [
             el('span', { class: 'font-extrabold', text: t('ambience') }),
-            el('span', { class: 'text-xs text-slate-400', text: t('layerDescription') })
+            el('span', { class: 'text-xs text-slate-400', text: t('layerDescription') }),
+            bankAutomationControl(sc, 'ambience')
           ]),
           el('div', { class: 'flex items-center gap-2' }, [
             el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
@@ -2088,7 +2315,8 @@
       return el('section', { class: 'rounded-2xl card overflow-visible' }, [
         el('div', { class: 'px-5 py-3 cardHeader flex items-center justify-between flex-wrap gap-3 rounded-t-2xl' }, [
           el('div', { class: 'flex items-center gap-2' }, [
-            el('span', { class: 'font-extrabold', text: t('sfx') })
+            el('span', { class: 'font-extrabold', text: t('sfx') }),
+            bankAutomationControl(sc, 'sfx')
           ]),
           el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
             el('span', { class: 'text-[11px] text-slate-400', text: t('padSize') }),
@@ -2165,7 +2393,7 @@
       const isSmallPad = sc?.sfxPadSize === 'small';
       // Size is controlled once per bank in renderSfxCard. The pad itself fills
       // its grid cell and stays square at every viewport width.
-      const wrap = el('div', { class: 'relative group w-full aspect-square min-w-0' }, []);
+      const wrap = el('div', { class: 'relative group w-full min-w-0 aspect-square' }, []);
       const btn = el('button', {
         class: 'w-full h-full pad flex flex-col items-center justify-center gap-1 shadow-lg active:scale-[.98] transition select-none',
         style: {
@@ -2206,7 +2434,23 @@
           render();
         }
       });
-      wrap.append(btn, menuBtn);
+      const sceneMarker = el('button', {
+        type: 'button',
+        class: `absolute top-2 left-2 z-30 w-7 h-7 min-h-0 p-0 rounded-full border flex items-center justify-center text-[10px] leading-none font-black transition shadow-md ${pad.sceneStart ? 'bg-emerald-400 border-white text-emerald-950' : 'bg-black/70 border-white/35 text-white/55 hover:bg-black/90 hover:border-white/70 hover:text-white'}`,
+        text: pad.sceneStart ? '✓' : '·',
+        title: `${t('sceneStartMarker')}: ${pad.sceneStart ? t('on') : t('off')}`,
+        'aria-label': `${t('sceneStartMarker')}: ${pad.sceneStart ? t('on') : t('off')}`,
+        'aria-pressed': !!pad.sceneStart,
+        onClick: async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          pad.sceneStart = !pad.sceneStart;
+          syncSfxAutomation(sc);
+          await saveScene(sc, { quiet: true });
+          render();
+        }
+      });
+      wrap.append(btn, menuBtn, sceneMarker);
       if (state.ui.openSfxPadMenu === pad.assetId) wrap.append(renderPadMenu(sc, pad));
       return wrap;
     }
@@ -2281,6 +2525,7 @@
           onClick: async (e) => {
             e.stopPropagation();
             sc.sfxBank = sc.sfxBank.filter(p => p.assetId !== pad.assetId);
+            syncSfxAutomation(sc);
             await saveScene(sc, { quiet: true });
             render();
           }
