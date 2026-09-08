@@ -31,13 +31,6 @@
 - Updated the README and user manual with the current playback, scene automation, SFX synchronization, and playlist behavior.
 - Added assets for the SFX bank.
 
-## Verification
-
-- Verified the updated HTML source with a JavaScript syntax check.
-- Verified that the SFX synchronization logic covers pad marking, pad unmarking, global deactivation, and pad removal.
-- Verified the playlist wrap-around behavior for playlist loop mode.
-- Verified that the SFX prompt document contains exactly 100 numbered entries.
-
 ## Upgrade Notes
 
 No database changes are required for these updates. Existing scenes continue to work, while SFX automation states are normalized when scenes are loaded or edited.
