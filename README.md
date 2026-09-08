@@ -6,7 +6,7 @@ A browser-based soundboard for tabletop role-playing sessions with music playlis
 
 **Current: 0.3.0**
 
-Favicon support is part of the existing baseline. Version 0.3.0 adds the scene automation badge, synchronized SFX scene-start settings, improved playlist-loop navigation, updated documentation, and 100 English SFX generation prompts. See the [Release Notes](RELEASE_NOTES_0.3.0.md) for the changes since favicon support was introduced.
+Version 0.3.0 adds the scene automation badge, synchronized SFX scene-start settings, improved playlist-loop navigation, updated documentation, and 100 English SFX generation prompts. See the [Release Notes](RELEASE_NOTES_0.3.0.md) for the changes since favicon support was introduced.
 
 ## Features
 
