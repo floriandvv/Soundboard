@@ -2,48 +2,46 @@
 
 **Release date:** September 8, 2026
 
-## Overview
+## Baseline
 
-Version 0.3.0 improves favicon support in the Soundboard and makes web UI delivery more robust across different deployment layouts.
+Favicon support was already available before these changes. The following notes document what was added to the Soundboard afterward.
 
-## Changes
+## Changes since favicon support
 
-- Added support for both favicon formats:
-  - `favicon.ico`
-  - `favicon.png`
-- Added FastAPI routes for serving the favicons:
-  - `GET /favicon.ico`
-  - `GET /favicon.png`
-- Added automatic favicon discovery in the configured UI directory.
-- The following UI directories are supported:
-  - `ui-dist/`
-  - `ui-dist/public/`
-  - `ui-dist/static/`
-- Added fallback favicon lookup:
-  - next to the server file
-  - in the current working directory
-- Referenced both favicon formats in the HTML document `<head>`.
-- Added a minimalist Soundboard favicon as a PNG asset.
-- Verified the server source with a Python syntax check.
-- Improved favicon support for different UI deployment layouts.
+### Scene automation indicator
 
-## Technical Details
+- Added a compact automation badge to the scene overview.
+- Replaced the previous multi-dot indicator with two opposing play triangles.
+- Removed the surrounding circle from the scene badge for a cleaner visual treatment.
+- Kept the badge available as a quick indication that a scene contains automatic audio actions.
 
-The server searches for favicon files in a defined order. This allows browser and tab icon delivery to work with both built UIs and alternative static directory layouts.
+### SFX automation synchronization
 
-The HTML UI references both formats:
+- Added bidirectional synchronization between the global SFX scene-start setting and individual pad markers.
+- Marking at least one SFX pad automatically enables **Start marked SFX on scene change**.
+- Unmarking the last SFX pad automatically disables the global setting.
+- Disabling the global setting removes all SFX pad markers.
+- Removing a marked pad recalculates the global SFX automation state.
+- This prevents contradictory states between the global setting and individual SFX pads.
 
-```html
-<link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any" />
-<link rel="icon" href="/favicon.png" type="image/png" />
-```
+### Playlist navigation
+
+- Improved the **Next track** behavior for playlist loop mode.
+- When the last track is active and playlist loop is enabled, pressing **Next track** now starts the first track again.
+- Without playlist loop, the last track remains selected instead of wrapping around.
+
+### Documentation and SFX content
+
+- Updated the README and user manual with the current playback, scene automation, SFX synchronization, and playlist behavior.
+- Added 100 concise English descriptions for generating SFX assets for the SFX bank.
 
 ## Verification
 
-- Successfully ran a Python syntax check on the server source.
-- Documented both favicon routes and the extended search paths.
-- Existing UI functionality remains unchanged.
+- Verified the updated HTML source with a JavaScript syntax check.
+- Verified that the SFX synchronization logic covers pad marking, pad unmarking, global deactivation, and pad removal.
+- Verified the playlist wrap-around behavior for playlist loop mode.
+- Verified that the SFX prompt document contains exactly 100 numbered entries.
 
 ## Upgrade Notes
 
-No database changes are required to upgrade to version 0.3.0. Make sure that at least one supported favicon file is present in one of the directories checked by the server.
+No database changes are required for these updates. Existing scenes continue to work, while SFX automation states are normalized when scenes are loaded or edited.
