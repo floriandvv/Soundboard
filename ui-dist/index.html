@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DnD Soundboard</title>
+  <title>DnD Soundboard · build 2026-09-09-scene-fix-r2</title>
+  <meta name="soundboard-ui-build" content="2026-09-09-scene-fix-r2" />
   <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="any" />
   <link rel="icon" href="/favicon.png" type="image/png" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -42,12 +43,22 @@
     .playlistChevronPrev { transform: rotate(-135deg); margin-left: .18rem; }
     .playlistChevronNext { transform: rotate(45deg); margin-right: .18rem; }
     /* Doppeltes, gegensinnig gespiegelt ausgerichtetes Play-Symbol. */
-    .automationGlyph { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: .8rem; gap: .08rem; flex: 0 0 auto; color: currentColor; }
+    .automationGlyph { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 1.58rem; height: 1rem; gap: .14rem; flex: 0 0 auto; color: currentColor; }
     .automationGlyph::before,
-    .automationGlyph::after { content: ''; display: block; width: 0; height: 0; border-top: .24rem solid transparent; border-bottom: .24rem solid transparent; border-left: .31rem solid currentColor; }
+    .automationGlyph::after { content: ''; display: block; width: 0; height: 0; border-top: .5rem solid transparent; border-bottom: .5rem solid transparent; border-left: .72rem solid currentColor; }
     .automationGlyph::after { transform: scaleX(-1); }
     .automationGlyph::before { transform: none; }
     .automationGlyphMuted { opacity: .72; }
+    .playbackGlyph { display: inline-block; flex: 0 0 auto; width: 1rem; height: 1rem; color: currentColor; }
+    .playbackGlyphSquare { background: currentColor; border: 0; border-radius: .12rem; }
+    .playbackGlyphTriangle { width: 0; height: 0; border-top: .5rem solid transparent; border-bottom: .5rem solid transparent; border-left: .72rem solid currentColor; }
+    /* build 2026-09-09-scene-fix-r2: asset add boxes always use the full bank width */
+    .assetAddArea { display: block; width: 100%; min-width: 0; }
+    .assetAddLabel { display: block; width: 100%; margin-bottom: .5rem; }
+    .assetAddGrid { display: grid; width: 100%; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+    .assetAddButton { display: block; width: 100%; min-width: 0; height: 2.5rem; min-height: 2.5rem; max-height: 2.5rem; padding: 0 .7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: normal; text-align: left; font-size: .75rem; line-height: 1rem; }
+    .sceneCreateButton { opacity: 1 !important; cursor: pointer !important; }
+    @media (max-width: 640px) { .assetAddGrid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100">
@@ -112,7 +123,8 @@
         firstLibraryHint: 'Gib deiner Bibliothek einen Namen. Die Audio-Ordner werden automatisch angelegt, damit du direkt Titel hinzufügen kannst.',
         afterCreate: 'Danach kannst du Musik-, Ambience- und SFX-Dateien hinzufügen.',
         newGroup: '+ Neue Gruppe', editGroup: 'Gruppe bearbeiten', deleteGroup: 'Gruppe löschen', assignGroup: 'Gruppe zuweisen', groupActions: 'Gruppenaktionen',
-        moveUp: 'Nach oben', moveDown: 'Nach unten', fadeStop: 'Fade stoppen', emergencyStop: 'Notstopp'
+        moreAssetsAvailable: '+ {count} weitere Assets verfügbar', morePadsHidden: '+ {count} weitere Pads ausgeblendet', showAll: 'Alle anzeigen', showFewer: 'Weniger anzeigen', addAssetTooltip: 'Asset hinzufügen',
+        moveUp: 'Nach oben', moveDown: 'Nach unten', fadeStop: 'Fade stoppen', emergencyStop: 'Notstopp', stopShort: 'Stop', sfxGain: 'SFX-Gain', sfxGainHint: 'Individuelle Lautstärke dieses Pads in dB (−60 bis +12).', sfxGainInvalid: 'Bitte einen Wert zwischen −60 und +12 dB eingeben.', loop: 'Loop', loopHint: 'Klick startet die Schleife, nächster Klick stoppt sie.'
       },
       en: {
         language: 'Language', english: 'English', german: 'German',
@@ -148,7 +160,8 @@
         firstLibraryHint: 'Give your library a name. The audio folders will be created automatically so you can start adding titles.',
         afterCreate: 'Afterwards you can add Music, Ambience and SFX files.',
         newGroup: '+ New group', editGroup: 'Edit group', deleteGroup: 'Delete group', assignGroup: 'Assign group', groupActions: 'Group actions',
-        moveUp: 'Move up', moveDown: 'Move down', fadeStop: 'Fade stop', emergencyStop: 'Emergency stop'
+        moreAssetsAvailable: '+ {count} more assets available', morePadsHidden: '+ {count} more pads hidden', showAll: 'Show all', showFewer: 'Show fewer',
+        moveUp: 'Move up', moveDown: 'Move down', fadeStop: 'Fade stop', emergencyStop: 'Emergency stop', stopShort: 'Stop', sfxGain: 'SFX gain', sfxGainHint: 'Individual volume for this pad in dB (−60 to +12).', sfxGainInvalid: 'Enter a value between −60 and +12 dB.', loop: 'Loop', loopHint: 'Click to start the loop, click again to stop it.'
       }
     };
     let translations = fallbackTranslations;
@@ -172,9 +185,11 @@
     }
     function t(key, vars = {}) {
       const source = translations[state.language] || translations.translations?.[state.language] || {};
-      const fallback = translations.en || translations.translations?.en || fallbackTranslations.en || {};
+      const languageFallback = fallbackTranslations[state.language] || {};
+      const englishFallback = fallbackTranslations.en || {};
+      const fallback = translations.en || translations.translations?.en || {};
       if (source.translations) Object.assign(source, source.translations);
-      let value = source[key] ?? fallback[key] ?? key;
+      let value = source[key] ?? languageFallback[key] ?? fallback[key] ?? englishFallback[key] ?? key;
       return String(value).replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? '');
     }
     function setLanguage(language) {
@@ -220,6 +235,7 @@
       sessionAssets: (sessionId) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets`),
       upsertSessionAssets: (sessionId, payload) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
       removeSessionAsset: (sessionId, assetId) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' }),
+      removeSessionAssets: (sessionId, assetIds) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}/assets/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_ids: assetIds }) }),
       renameSession: (sessionId, payload) => apiFetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }),
       reorderScene: (sceneId, order) => apiFetch(`/api/scenes/${encodeURIComponent(sceneId)}/order`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) }),
       deleteScene: (id) => apiFetch(`/api/scenes/${encodeURIComponent(id)}`, { method: 'DELETE' }),
@@ -242,7 +258,7 @@
       library: null,
       scenes: [],
       activeSceneId: null,
-      ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null, dialogAssetQuery: '', dialogAssetBucket: 'Alle' },
+      ui: { busy: false, toast: null, sessionBuilderOpen: false, builderQuery: '', fullLibraryOpen: false, fullLibraryBucket: 'SFX', fullLibraryQuery: '', fullLibrary: null, selectedSessionAssets: new Set(), fullLibrarySelected: new Set(), pendingSessionAssetAdds: new Set(), sessionAssetAddTimer: null, sessionAssetAddBusy: false, draggingSessionAsset: null, sessionDirty: false, mobileSidebarOpen: false, searchTimers: new Map(), dialog: null, setupGameName: '', openSfxPadMenu: null, sfxPreviewExpanded: new Set(), bankAddExpanded: new Set(), dialogAssetQuery: '', dialogAssetBucket: 'Alle' },
       audio: {
         unlocked: false,
         playbackMode: 'stopped', // stopped | scene | auto
@@ -294,7 +310,6 @@
         start: typeof active.selectionStart === 'number' ? active.selectionStart : null,
         end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
       };
-      if (active.matches('[data-dialog-input]') && state.ui.dialog) state.ui.dialog.value = active.value;
       return stateInfo;
     }
 
@@ -356,12 +371,24 @@
       const dialog = state.ui.dialog;
       if (!dialog) return null;
       const submit = () => {
+        if (dialog.submitting) return;
         const input = document.querySelector('[data-dialog-title]') || document.querySelector('[data-dialog-input]');
-        const value = input ? input.value.trim() : '';
+        const value = input ? String(input.value || '').trim() : '';
         const selectedGroup = document.querySelector('[data-dialog-group]')?.value || '';
         const color = document.querySelector('[data-dialog-color]')?.value || '';
         const assets = Array.from(document.querySelectorAll('[data-dialog-asset]:checked')).map(node => node.value);
         if (dialog.requireValue && !value) return;
+        if (dialog.keepOpenOnSubmit) {
+          dialog.submitting = true;
+          dialog.status = dialog.progressText || (state.language === 'en' ? 'Working…' : 'Verarbeitung läuft…');
+          render();
+          Promise.resolve().then(() => dialog.onSubmit?.(value, color, assets, selectedGroup)).catch((error) => {
+            dialog.submitting = false;
+            dialog.status = `${state.language === 'en' ? 'Request failed' : 'Anfrage fehlgeschlagen'}: ${error?.message || error}`;
+            render();
+          });
+          return;
+        }
         closeDialog();
         dialog.onSubmit?.(value, color, assets, selectedGroup);
       };
@@ -370,7 +397,7 @@
           el('h2', { id: 'dialog-title', class: 'text-lg font-extrabold', text: dialog.title }),
           dialog.message ? el('p', { class: 'mt-2 text-sm text-slate-300', text: dialog.message }) : null,
           dialog.select ? el('select', { 'data-dialog-group': '1', class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Escape') closeDialog(); } }, (dialog.options || []).map(option => el('option', { value: option.value, text: option.label, selected: option.value === dialog.value }))) : null,
-          dialog.input ? el('input', { type: 'text', 'data-dialog-title': '1', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm', value: dialog.value || '', placeholder: dialog.placeholder || '', onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
+          dialog.input ? el('input', { type: 'text', 'data-dialog-title': '1', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, disabled: !!dialog.submitting, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm disabled:opacity-60', value: dialog.value || '', placeholder: dialog.placeholder || '', onInput: (e) => { dialog.value = e.target.value; }, onChange: (e) => { dialog.value = e.target.value; }, onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
           dialog.assetPicker ? (() => {
             const query = (state.ui.dialogAssetQuery || '').trim().toLowerCase();
             const bucket = state.ui.dialogAssetBucket || 'Alle';
@@ -398,9 +425,10 @@
             ]);
           })() : null,
           dialog.color ? el('input', { type: 'color', 'data-dialog-color': '1', class: 'mt-4 h-10 w-full rounded-lg bg-slate-950 border border-slate-700', value: dialog.color, onMouseDown: (e) => e.stopPropagation() }) : null,
+          dialog.status ? el('div', { class: `mt-4 rounded-lg border px-3 py-2 text-xs ${dialog.statusKind === 'error' ? 'border-rose-800 bg-rose-950/40 text-rose-200' : 'border-emerald-800 bg-emerald-950/30 text-emerald-200'}`, role: dialog.statusKind === 'error' ? 'alert' : 'status', 'aria-live': 'polite', text: dialog.status }) : null,
           el('div', { class: 'mt-5 flex justify-end gap-2' }, [
-            el('button', { type: 'button', class: 'px-3 py-2 rounded-lg btn text-sm font-semibold', text: t('cancel'), onClick: closeDialog }),
-            el('button', { type: 'button', class: 'px-3 py-2 rounded-lg ' + (dialog.danger ? 'btnDanger' : 'btnPrimary') + ' text-sm font-semibold', text: dialog.confirmText || 'Confirm', onClick: submit })
+            el('button', { type: 'button', disabled: !!dialog.submitting, class: 'px-3 py-2 rounded-lg btn text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed', text: t('cancel'), onClick: closeDialog }),
+            el('button', { type: 'button', disabled: dialog.submitting === true, 'data-dialog-confirm': '1', class: 'px-3 py-2 rounded-lg ' + (dialog.danger ? 'btnDanger' : 'btnPrimary') + ' text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed', text: dialog.submitting ? (state.language === 'en' ? 'Working…' : 'Wird verarbeitet…') : (dialog.confirmText || 'Confirm'), onClick: submit })
           ])
         ])
       ]);
@@ -590,7 +618,7 @@
     async function startScenePreset(sc, { strict = false } = {}) {
       if (!sc || !playbackIsRunning() || !state.audio.unlocked) return;
       const preset = scenePresetParts(sc, { strict });
-      preloadSfxForScene(sc);
+      // SFX are loaded lazily by triggerSfx, one concrete pad at a time.
       // playMusic always creates one playlist node, so music can never stack.
       if (preset.musicId) await playMusic(preset.musicId);
       let ambienceChanged = false;
@@ -936,15 +964,9 @@
     }
 
     async function preloadSfxForScene(sc) {
-      if (!sc || !state.audio.unlocked) return;
-      const ctx = ensureAudio();
-      const ids = Array.from(new Set((sc.sfxBank || []).map(p => p.assetId)));
-      const assets = state.library?.SFX || [];
-      // Do not make scene activation wait for audio decoding.
-      for (const id of ids) {
-        const asset = assets.find(a => a.id === id);
-        if (asset) preloadSfxAsset(id, asset, ctx).catch(e => console.warn('SFX task failed', id, e));
-      }
+      // Deliberately no-op: activating a scene must not download its entire SFX bank.
+      // A concrete pad is loaded by triggerSfx only when it is actually used.
+      return;
     }
 
     function clearSfxVoice(assetId, voice) {
@@ -1006,16 +1028,25 @@
 
     function createSfxVoice(assetId, cached, ctx) {
       const out = state.audio.buses.sfx.gain;
-      const voice = { assetId, mode: cached.mode, gain: null, src: null, audioEl: null, url: cached.mode === 'element' ? cached.url : null };
+      const pad = activeScene()?.sfxBank?.find(item => item.assetId === assetId);
+      const gainDb = clamp(Number.isFinite(Number(pad?.gainDb)) ? Number(pad.gainDb) : 0, -60, 12);
+      const padMode = pad?.mode || 'poly';
+      const loop = padMode === 'loop';
+      const voice = { assetId, mode: cached.mode, padMode, loop, gain: null, src: null, audioEl: null, url: cached.mode === 'element' ? cached.url : null, gainDb };
       state.audio.sfx.allVoices.add(voice);
       if (cached.mode === 'element') {
         const audioEl = new Audio(cached.url);
         audioEl.preload = 'auto';
         audioEl.crossOrigin = 'anonymous';
+        audioEl.loop = loop;
         const src = ctx.createMediaElementSource(audioEl);
-        src.connect(out);
+        const g = ctx.createGain();
+        g.gain.value = dbToGain(gainDb);
+        src.connect(g);
+        g.connect(out);
         voice.audioEl = audioEl;
         voice.src = src;
+        voice.gain = g;
         audioEl.onended = () => {
           if (!state.audio.sfx.allVoices.has(voice)) return;
           if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
@@ -1034,7 +1065,8 @@
         const src = ctx.createBufferSource();
         const g = ctx.createGain();
         src.buffer = cached.buffer;
-        g.gain.value = 1.0;
+        src.loop = loop;
+        g.gain.value = dbToGain(gainDb);
         src.connect(g);
         g.connect(out);
         src.onended = () => {
@@ -1057,15 +1089,22 @@
       const ctx = ensureAudio();
       const cached = state.audio.sfx.cache.get(assetId);
       if (!cached) {
+        const asset = (state.library?.SFX || []).find(a => a.id === assetId);
+        if (!asset) {
+          setAssetStatus('sfx', assetId, 'unavailable', 'SFX not available');
+          return;
+        }
+        if (state.audio.sfx.loading.has(assetId)) return;
         setAssetStatus('sfx', assetId, 'loading');
-        toast(t('sfxLoading'), 'info');
-        preloadSfxForScene(activeScene());
+        preloadSfxAsset(assetId, asset, ctx).then(() => {
+          if (state.audio.sfx.cache.has(assetId)) triggerSfx(assetId);
+        });
         return;
       }
       const pad = activeScene()?.sfxBank?.find(p => p.assetId === assetId);
       const mode = pad?.mode || 'poly';
       const current = state.audio.sfx.voices.get(assetId);
-      if (mode === 'toggle' && current) { stopSfx(assetId); return; }
+      if ((mode === 'toggle' || mode === 'loop') && current) { stopSfx(assetId); return; }
       if (mode === 'restart' && current) stopSfx(assetId, { fadeSec: 0.01 });
       const voice = createSfxVoice(assetId, cached, ctx);
       state.audio.sfx.voices.set(assetId, voice);
@@ -1323,7 +1362,6 @@
       const sc = activeScene();
       if (!sc || !state.audio.unlocked || previousMode === 'stopped') return;
 
-      preloadSfxForScene(sc);
       if (previousMode === 'auto') await startScenePreset(sc, { strict: true });
       // In scene mode playback is deliberately stopped after a scene change.
     }
@@ -1334,7 +1372,7 @@
       if (!sc) return;
       if (!sc.musicBank.includes(assetId)) sc.musicBank.push(assetId);
       if (!sc.currentMusic) sc.currentMusic = assetId;
-      saveScene(sc, { quiet: true });
+      scheduleSceneSave(sc, 'bank-edit');
       render();
     }
 
@@ -1344,7 +1382,7 @@
       sc.musicBank = sc.musicBank.filter(id => id !== assetId);
       if (sc.currentMusic === assetId) sc.currentMusic = sc.musicBank[0] || null;
       if (sc.currentMusic === null) sc.musicAutoStart = false;
-      saveScene(sc, { quiet: true });
+      scheduleSceneSave(sc, 'bank-edit');
       render();
     }
 
@@ -1353,7 +1391,7 @@
       if (!sc) return;
       if (sc.ambienceBank.some(l => l.assetId === assetId)) return;
       sc.ambienceBank.push({ assetId, on: false, volDb: -20, fadeSec: 4 });
-      saveScene(sc, { quiet: true });
+      scheduleSceneSave(sc, 'bank-edit');
       render();
     }
 
@@ -1362,12 +1400,70 @@
       if (!sc) return;
       if (sc.sfxBank.some(p => p.assetId === assetId)) return;
       const idx = sc.sfxBank.length;
-      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '', sceneStart: false });
-      saveScene(sc, { quiet: true });
+      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '', sceneStart: false, gainDb: 0 });
+      scheduleSceneSave(sc, 'bank-edit');
       render();
     }
 
     // ---------------------- Render ----------------------
+    // ---------------------- Session asset batching ----------------------
+    // Selecting assets changes session metadata only; it never downloads audio.
+    // Rapid additions are collected into one API request to avoid write bursts.
+    function queueSessionAssetAdds(assetIds) {
+      if (!state.activeSessionId) return;
+      const existing = new Set((state.sessionAssets || []).map(row => row.asset_id));
+      const pending = state.ui.pendingSessionAssetAdds || new Set();
+      for (const assetId of assetIds) {
+        if (!assetId || existing.has(assetId) || pending.has(assetId)) continue;
+        pending.add(assetId);
+        state.sessionAssets.push({
+          asset_id: assetId,
+          preload: 'warm',
+          volume_db: 0,
+          loop: 0,
+          sort_order: state.sessionAssets.length
+        });
+      }
+      state.ui.pendingSessionAssetAdds = pending;
+      clearTimeout(state.ui.sessionAssetAddTimer);
+      state.ui.sessionAssetAddTimer = setTimeout(flushSessionAssetAdds, 300);
+      render();
+    }
+
+    async function flushSessionAssetAdds() {
+      const sessionId = state.activeSessionId;
+      const pending = state.ui.pendingSessionAssetAdds || new Set();
+      state.ui.sessionAssetAddTimer = null;
+      if (!sessionId || !pending.size || state.ui.sessionAssetAddBusy) return;
+      const ids = Array.from(pending);
+      pending.clear();
+      state.ui.sessionAssetAddBusy = true;
+      try {
+        const existingRows = (state.sessionAssets || []).filter(row => !ids.includes(row.asset_id));
+        await API.upsertSessionAssets(sessionId, {
+          assets: ids.map((assetId, index) => ({
+            asset_id: assetId,
+            preload: 'warm',
+            volume_db: 0,
+            loop: 0,
+            sort_order: existingRows.length + index
+          }))
+        });
+        const sa = await API.sessionAssets(sessionId);
+        state.sessionAssets = sa.assets || [];
+        const libRes = await API.library(state.activeGameId, state.activeSessionId);
+        state.library = libRes.library;
+      } catch (e) {
+        const sa = await API.sessionAssets(sessionId).catch(() => ({ assets: [] }));
+        state.sessionAssets = sa.assets || [];
+        toast(`Batch add failed: ${e.message}`, 'warn');
+      } finally {
+        state.ui.sessionAssetAddBusy = false;
+        render();
+        if (pending.size) state.ui.sessionAssetAddTimer = setTimeout(flushSessionAssetAdds, 0);
+      }
+    }
+
     function renderSessionBuilder() {
       if (!state.activeSessionId) {
         return el('div', { class: 'rounded-xl border border-slate-800 bg-slate-900/30 p-3 text-xs text-slate-400' }, [
@@ -1439,7 +1535,7 @@
           el('span', { text: selected.size ? `· ${selected.size} selected` : '' }),
           selected.size ? el('button', { class: 'px-2 py-1 rounded btn text-xs font-semibold text-rose-300', text: t('removeSelection'), onClick: async () => {
             try {
-              for (const id of selected) await API.removeSessionAsset(state.activeSessionId, id);
+              await API.removeSessionAssets(state.activeSessionId, Array.from(selected));
               await reloadSessionAssets();
               const libRes = await API.library(state.activeGameId, state.activeSessionId);
               state.library = libRes.library;
@@ -1570,19 +1666,12 @@
         state.ui.fullLibrarySelected = next;
         render();
       };
-      const addSelectedLibraryAssets = async () => {
-        const batch = Array.from(selectedLibrary).map((id, i) => ({ asset_id: id, preload: 'warm', sort_order: (state.sessionAssets?.length || 0) + i }));
-        if (!batch.length) return;
-        try {
-          await API.upsertSessionAssets(state.activeSessionId, { assets: batch });
-          const sa = await API.sessionAssets(state.activeSessionId);
-          state.sessionAssets = sa.assets || [];
-          state.ui.fullLibrarySelected = new Set();
-          const libRes = await API.library(state.activeGameId, state.activeSessionId);
-          state.library = libRes.library;
-          toast(`${batch.length} Assets hinzugefügt`, 'ok');
-          render();
-        } catch (e) { toast(`Add failed: ${e.message}`, 'warn'); }
+      const addSelectedLibraryAssets = () => {
+        const ids = Array.from(selectedLibrary);
+        if (!ids.length) return;
+        state.ui.fullLibrarySelected = new Set();
+        queueSessionAssetAdds(ids);
+        toast(`${ids.length} assets queued`, 'ok');
       };
 
       return el('div', { class: 'border-t border-slate-800 bg-slate-950/30' }, [
@@ -1602,19 +1691,9 @@
               el('div', { class: 'text-sm font-semibold truncate', text: a.filename }),
               el('div', { class: 'text-[11px] text-slate-500 truncate', text: a.rel_path })
             ]),
-            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: '+', onClick: async () => {
-              try {
-                const sort = (state.sessionAssets?.length || 0) + idx;
-                await API.upsertSessionAssets(state.activeSessionId, { assets: [{ asset_id: a.id, preload: 'warm', sort_order: sort }] });
-                const sa = await API.sessionAssets(state.activeSessionId);
-                state.sessionAssets = sa.assets || [];
-                const libRes = await API.library(state.activeGameId, state.activeSessionId);
-                state.library = libRes.library;
-                toast(t('added'), 'ok');
-                render();
-              } catch (e) {
-                toast(`Add failed: ${e.message}`, 'warn');
-              }
+            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: '+', onClick: () => {
+              queueSessionAssetAdds([a.id]);
+              toast(t('added'), 'ok');
             }})
           ]))
         ),
@@ -1689,19 +1768,54 @@
         message: editing ? t('editGameHint') : t('createGameHint'),
         input: true, assetPicker: true, assetOptions: availableDialogAssets(), selectedAssets: [...existing],
         requireValue: true, value: current?.title || '', placeholder: t('gameName'), confirmText: editing ? t('save') : t('create'),
+        keepOpenOnSubmit: true,
+        progressText: editing ? (state.language === 'en' ? 'Updating game…' : 'Spiel wird aktualisiert…') : (state.language === 'en' ? 'Creating game…' : 'Spiel wird erstellt…'),
         onSubmit: async (title, color, assets) => {
+          const dialog = state.ui.dialog;
+          const setDialogStatus = (status, kind = 'info') => {
+            if (!state.ui.dialog) return;
+            state.ui.dialog.status = status;
+            state.ui.dialog.statusKind = kind;
+            state.ui.dialog.submitting = kind !== 'success';
+            render();
+          };
           try {
             let session = current;
-            if (!editing) { const res = await API.createSession({ game_id: state.activeGameId, title }); session = res.session; state.sessions.unshift(session); state.activeSessionId = session.id; }
-            else { const res = await API.renameSession(session.id, { title }); session = res.session; state.sessions = state.sessions.map(s => s.id === session.id ? session : s); }
+            if (!editing) {
+              setDialogStatus(state.language === 'en' ? 'Creating game…' : 'Spiel wird erstellt…');
+              const res = await API.createSession({ game_id: state.activeGameId, title });
+              session = res.session;
+              state.sessions.unshift(session);
+              state.activeSessionId = session.id;
+            } else {
+              setDialogStatus(state.language === 'en' ? 'Updating game…' : 'Spiel wird aktualisiert…');
+              const res = await API.renameSession(session.id, { title });
+              session = res.session;
+              state.sessions = state.sessions.map(s => s.id === session.id ? session : s);
+            }
+            setDialogStatus(state.language === 'en' ? `Saving ${assets.length} selected assets…` : `${assets.length} ausgewählte Assets werden gespeichert…`);
             const nextAssetIds = new Set(assets);
             if (editing) {
               const removedAssetIds = [...existing].filter(assetId => !nextAssetIds.has(assetId));
-              for (const assetId of removedAssetIds) await API.removeSessionAsset(session.id, assetId);
+              if (removedAssetIds.length) await API.removeSessionAssets(session.id, removedAssetIds);
             }
             await API.upsertSessionAssets(session.id, { assets: assets.map((asset_id, index) => ({ asset_id, preload: 'warm', volume_db: 0, loop: 0, sort_order: index })) });
-            await reloadActiveSession(); toast(editing ? t('gameAdapted') : t('gameCreatedToast'), 'ok'); render();
-          } catch (e) { toast(`Speichern fehlgeschlagen: ${e.message}`, 'warn'); }
+            setDialogStatus(state.language === 'en' ? 'Refreshing library…' : 'Bibliothek wird aktualisiert…');
+            await reloadActiveSession();
+            closeDialog();
+            toast(editing ? t('gameAdapted') : t('gameCreatedToast'), 'ok');
+            render();
+          } catch (e) {
+            const message = `${state.language === 'en' ? 'Save failed' : 'Speichern fehlgeschlagen'}: ${e?.message || e}`;
+            if (state.ui.dialog === dialog || state.ui.dialog) {
+              state.ui.dialog.submitting = false;
+              state.ui.dialog.status = message;
+              state.ui.dialog.statusKind = 'error';
+              render();
+            } else {
+              toast(message, 'warn');
+            }
+          }
         }
       });
     }
@@ -1774,10 +1888,10 @@
     function renderPlaybackToggle() {
       const mode = state.audio.playbackMode;
       const info = mode === 'stopped'
-        ? { label: t('playbackStopped'), hint: t('playbackStoppedHint'), cls: 'btn text-slate-300' }
+        ? { label: t('playbackStopped'), hint: t('playbackStoppedHint'), cls: 'btn text-slate-300', glyph: 'playbackGlyph playbackGlyphSquare' }
         : mode === 'scene'
-          ? { label: t('playbackScene'), hint: t('playbackSceneHint'), cls: 'bg-amber-500/90 border-amber-300 text-amber-950' }
-          : { label: t('playbackAuto'), hint: t('playbackAutoHint'), cls: 'bg-emerald-500/90 border-emerald-300 text-emerald-950' };
+          ? { label: t('playbackScene'), hint: t('playbackSceneHint'), cls: 'bg-amber-500/90 border-amber-300 text-amber-950', glyph: 'playbackGlyph playbackGlyphTriangle' }
+          : { label: t('playbackAuto'), hint: t('playbackAutoHint'), cls: 'bg-emerald-500/90 border-emerald-300 text-emerald-950', glyph: 'automationGlyph' };
       return el('button', {
         class: `px-3 py-2 rounded-lg border text-sm font-semibold transition flex items-center gap-2 ${info.cls}`,
         onClick: cyclePlaybackMode,
@@ -1785,7 +1899,7 @@
         'aria-label': `${t('audioModeAria')}: ${info.label}. ${info.hint}`,
         'aria-pressed': mode !== 'stopped'
       }, [
-        renderAutomationGlyph({ muted: mode === 'stopped' }),
+        el('span', { class: info.glyph, 'aria-hidden': 'true' }),
         el('span', { text: info.label })
       ]);
     }
@@ -1931,12 +2045,27 @@
         el('div', { class: 'p-4 border-b border-slate-800' }, [
           el('div', { class: 'flex items-center justify-between gap-2' }, [
             el('div', { class: 'text-sm font-extrabold', text: t('scene') }),
-            el('button', { class: 'px-3 py-2 rounded-lg btn text-xs font-semibold', text: t('newShort'), onClick: () => {
+            el('button', { class: 'sceneCreateButton px-3 py-2 rounded-lg btn text-xs font-semibold', type: 'button', disabled: false, 'data-scene-create': '1', text: t('newShort'), onClick: () => {
               if (!state.activeGameId || !state.games.some(g => g.id === state.activeGameId)) return;
               const groups = groupNames();
               openDialog({ title: t('newScene'), message: t('newSceneHint'), input: true, select: true, requireValue: true, value: '', placeholder: t('sceneName'), options: groups.map(group => ({ value: group, label: group })), confirmText: t('create'), onSubmit: async (title, color, assets, selectedGroup) => {
-                try { const scNew = makeDefaultScene(state.activeGameId); scNew.title = title; scNew.group = selectedGroup || groups[0] || t('defaultGroup'); const res = await API.upsertScene(scNew); state.scenes.push(res.scene); state.activeSceneId = res.scene.id; toast(t('sceneCreated'), 'ok'); render(); }
-                catch (e) { toast(`Create scene failed: ${e.message}`, 'warn'); }
+                const cleanTitle = String(title || '').trim();
+                if (!cleanTitle) { toast(t('sceneName'), 'warn'); return; }
+                try {
+                  const scNew = makeDefaultScene(state.activeGameId);
+                  scNew.title = cleanTitle;
+                  scNew.group = String(selectedGroup || groups[0] || t('defaultGroup')).trim();
+                  scNew.session_id = state.activeSessionId || null;
+                  scNew.order = state.scenes.length;
+                  const res = await API.upsertScene(scNew);
+                  const created = res.scene;
+                  state.scenes = [...state.scenes.filter(scene => scene.id !== created.id), created];
+                  state.activeSceneId = created.id;
+                  toast(t('sceneCreated'), 'ok');
+                  render();
+                } catch (e) {
+                  toast(`Create scene failed: ${e.message}`, 'warn');
+                }
               }});
             }}),
           ]),
@@ -2126,6 +2255,41 @@
       }
     }
 
+    function renderBankAddControls({ sc, bucket, existingIds, labelKey, add }) {
+      const available = (state.library?.[bucket] || []).filter(asset => !existingIds.has(asset.id));
+      const previewLimit = 6;
+      const previewKey = `${sc?.id || '__active__'}:${bucket}`;
+      const expanded = state.ui.bankAddExpanded.has(previewKey);
+      const visible = expanded ? available : available.slice(0, previewLimit);
+      const hiddenCount = Math.max(0, available.length - visible.length);
+      return el('div', { class: 'space-y-2' }, [
+        el('div', { class: 'assetAddArea' }, [
+          el('span', { class: 'assetAddLabel text-[11px] text-slate-400', text: t(labelKey) }),
+          el('div', { class: 'assetAddGrid' }, visible.map(asset => el('button', {
+            class: 'assetAddButton rounded-md btn font-semibold',
+            text: `+ ${asset.filename}`,
+            title: asset.filename,
+            'aria-label': `${t('addAssetTooltip')}: ${asset.filename}`,
+            onClick: () => add(asset.id)
+          })))
+        ]),
+        hiddenCount > 0 ? el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
+          el('span', { class: 'text-[11px] text-slate-400', 'aria-live': 'polite', text: t('moreAssetsAvailable', { count: hiddenCount }) }),
+          el('button', {
+            class: 'px-3 py-1.5 rounded-lg btn text-xs font-semibold',
+            text: t('showAll'),
+            onClick: () => { state.ui.bankAddExpanded.add(previewKey); render(); }
+          })
+        ]) : (expanded && available.length > previewLimit ? el('div', { class: 'flex justify-start' }, [
+          el('button', {
+            class: 'px-3 py-1.5 rounded-lg btn text-xs font-semibold',
+            text: t('showFewer'),
+            onClick: () => { state.ui.bankAddExpanded.delete(previewKey); render(); }
+          })
+        ]) : null)
+      ]);
+    }
+
     function renderMusicCard(sc) {
       const cur = state.audio.music.node;
       const curName = cur ? (state.library?.Musik || []).find(a => a.id === cur.assetId)?.filename : null;
@@ -2155,7 +2319,7 @@
             el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
             el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.music.db, 'data-focus-key': 'music-bus-volume', class: 'w-28 accent-indigo-400', onInput: (e) => setBusDb('music', Number(e.target.value)) }),
             el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.music.db} dB` }),
-            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopMusic')}`, title: t('stopMusic'), 'aria-label': t('stopMusic'), onClick: stopMusic }),
+            el('button', { class: 'w-24 justify-center px-3 py-2 rounded-lg btnDanger text-xs font-bold whitespace-nowrap', text: `■ ${t('stopShort')}`, title: t('stopMusic'), 'aria-label': t('stopMusic'), onClick: stopMusic }),
           ])
         ]),
 
@@ -2216,13 +2380,13 @@
             })) : [el('div', { class: 'px-4 py-4 text-sm text-slate-500', text: t('emptyPlaylist') })]
           ),
 
-          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
-            el('span', { class: 'text-[11px] text-slate-400', text: t('addFromLibraryShort') }),
-            ...((state.library?.Musik || []).filter(m => !(sc?.musicBank || []).includes(m.id)).slice(0, 8).map(m =>
-              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${m.filename}`, onClick: () => addToMusicBank(m.id) })
-            )),
-            ((state.library?.Musik || []).length > 8) ? el('span', { class: 'text-[11px] text-slate-600', text: '…' }) : null
-          ])
+          renderBankAddControls({
+            sc,
+            bucket: 'Musik',
+            existingIds: new Set(sc?.musicBank || []),
+            labelKey: 'addFromLibraryShort',
+            add: addToMusicBank
+          })
         ])
       ]);
     }
@@ -2240,7 +2404,7 @@
             el('span', { class: 'text-[11px] text-slate-400', text: 'Bus' }),
             el('input', { type: 'range', min: -40, max: 0, step: 1, value: state.audio.buses.ambience.db, 'data-focus-key': 'ambience-bus-volume', class: 'w-28 accent-teal-400', onInput: (e) => setBusDb('ambience', Number(e.target.value)) }),
             el('span', { class: 'text-[11px] text-slate-400 w-12 text-right tabular', text: `${state.audio.buses.ambience.db} dB` }),
-            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopAmbienceButton')}`, title: t('stopAmbienceTooltip'), 'aria-label': t('stopAmbienceTooltip'), onClick: () => stopAllAmbience(sc) }),
+            el('button', { class: 'w-24 justify-center px-3 py-2 rounded-lg btnDanger text-xs font-bold whitespace-nowrap', text: `■ ${t('stopShort')}`, title: t('stopAmbienceTooltip'), 'aria-label': t('stopAmbienceTooltip'), onClick: () => stopAllAmbience(sc) }),
           ])
         ]),
         el('div', { class: 'p-4 space-y-3' }, [
@@ -2293,12 +2457,13 @@
             ]);
           }),
 
-          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
-            el('span', { class: 'text-[11px] text-slate-400', text: t('addLayerShort') }),
-            ...((state.library?.Ambience || []).filter(a => !layers.some(l => l.assetId === a.id)).slice(0,10).map(a =>
-              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${a.filename}`, onClick: () => { addAmbienceLayer(a.id); } })
-            ))
-          ])
+          renderBankAddControls({
+            sc,
+            bucket: 'Ambience',
+            existingIds: new Set(layers.map(layer => layer.assetId)),
+            labelKey: 'addLayerShort',
+            add: addAmbienceLayer
+          })
         ])
       ]);
     }
@@ -2308,6 +2473,11 @@
       const validSizes = ['small', 'medium', 'large'];
       const bankSize = validSizes.includes(sc?.sfxPadSize) ? sc.sfxPadSize : 'large';
       const gridMin = { small: 112, medium: 168, large: 236 }[bankSize];
+      const previewLimit = 12;
+      const previewKey = sc?.id || '__active-sfx__';
+      const previewExpanded = state.ui.sfxPreviewExpanded.has(previewKey);
+      const visiblePads = previewExpanded ? pads : pads.slice(0, previewLimit);
+      const hiddenPadCount = Math.max(0, pads.length - visiblePads.length);
       if (sc && sc.sfxPadSize !== bankSize) {
         sc.sfxPadSize = bankSize;
         scheduleSceneSave(sc, 'sfx-pad-size');
@@ -2354,17 +2524,32 @@
                 ])
               ])
             ]),
-            el('button', { class: 'px-3 py-2 rounded-lg btnDanger text-xs font-bold', text: `■ ${t('stopSfxButton')}`, title: t('stopSfx'), onClick: () => stopAllSfx({ fadeSec: 0.05 }) })
+            el('button', { class: 'w-24 justify-center px-3 py-2 rounded-lg btnDanger text-xs font-bold whitespace-nowrap', text: `■ ${t('stopShort')}`, title: t('stopSfx'), 'aria-label': t('stopSfx'), onClick: () => stopAllSfx({ fadeSec: 0.05 }) })
           ])
         ]),
         el('div', { class: 'p-4 space-y-4' }, [
-          el('div', { class: 'grid gap-3 items-start', style: { gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))` } }, pads.map(p => renderPad(sc, p))),
-          el('div', { class: 'flex items-center gap-2 flex-wrap' }, [
-            el('span', { class: 'text-[11px] text-slate-400', text: t('addFromLibraryShort') }),
-            ...((state.library?.SFX || []).filter(a => !pads.some(p => p.assetId === a.id)).slice(0,10).map(a =>
-              el('button', { class: 'px-2.5 py-1 rounded-md btn text-xs font-semibold', text: `+ ${a.filename}`, onClick: () => addSfxPad(a.id) })
-            ))
-          ]),
+          el('div', { class: 'grid gap-3 items-start', style: { gridTemplateColumns: `repeat(auto-fill, minmax(${gridMin}px, 1fr))` } }, visiblePads.map(p => renderPad(sc, p))),
+          hiddenPadCount > 0 ? el('div', { class: 'flex items-center justify-between gap-3 flex-wrap rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2' }, [
+            el('span', { class: 'text-xs text-slate-300', 'aria-live': 'polite', text: t('morePadsHidden', { count: hiddenPadCount }) }),
+            el('button', {
+              class: 'px-3 py-1.5 rounded-lg btn text-xs font-semibold',
+              text: state.language === 'en' ? 'Show all' : 'Alle anzeigen',
+              onClick: () => { state.ui.sfxPreviewExpanded.add(previewKey); render(); }
+            })
+          ]) : (previewExpanded && pads.length > previewLimit ? el('div', { class: 'flex justify-end' }, [
+            el('button', {
+              class: 'px-3 py-1.5 rounded-lg btn text-xs font-semibold',
+              text: state.language === 'en' ? 'Show fewer' : 'Weniger anzeigen',
+              onClick: () => { state.ui.sfxPreviewExpanded.delete(previewKey); render(); }
+            })
+          ]) : null),
+          renderBankAddControls({
+            sc,
+            bucket: 'SFX',
+            existingIds: new Set(pads.map(pad => pad.assetId)),
+            labelKey: 'addFromLibraryShort',
+            add: addSfxPad
+          }),
           el('div', { class: 'text-[11px] text-slate-500' }, [
             t('sfxPreload') + ': ',
             el('span', { class: 'kmono text-slate-400', text: `${state.audio.sfx.cache.size} ${t('loaded')}` }),
@@ -2388,7 +2573,8 @@
       const modeInfo = {
         poly: { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') },
         toggle: { icon: '◉', label: t('toggle'), color: '#34d399', description: t('toggleHint') },
-        restart: { icon: '↻', label: t('restart'), color: '#fb7185', description: t('restartHint') },
+        restart: { icon: '↪︎', label: t('restart'), color: '#fb7185', description: t('restartHint') },
+        loop: { icon: '↻', label: t('loop'), color: '#c084fc', description: t('loopHint') },
       }[pad.mode] || { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') };
       const isSmallPad = sc?.sfxPadSize === 'small';
       // Size is controlled once per bank in renderSfxCard. The pad itself fills
@@ -2405,11 +2591,22 @@
         el('div', {
           class: 'text-3xl leading-none font-black drop-shadow',
           text: String(pad.key || '').toUpperCase() || '—',
+          'aria-hidden': 'true'
+        }),
+        el('div', {
+          class: 'w-full min-w-0 max-w-full px-2 text-center text-[11px] leading-tight break-words overflow-hidden [overflow-wrap:anywhere] line-clamp-3',
+          style: { overflowWrap: 'anywhere', wordBreak: 'break-word', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: '3' },
+          text: name,
           title: `${name} · ${modeInfo.description}`,
           'aria-label': `${name}, Shortkey ${String(pad.key || '').toUpperCase() || 'nicht belegt'}, Modus ${modeInfo.label}`
         })
       ] : [
-        el('div', { class: 'text-base leading-tight px-2 text-center drop-shadow', text: name }),
+        el('div', {
+          class: 'w-full min-w-0 max-w-full px-2 text-center drop-shadow text-sm sm:text-base leading-tight break-words overflow-hidden [overflow-wrap:anywhere] line-clamp-3',
+          text: name,
+          title: name,
+          'aria-label': name
+        }),
         el('div', {
           class: 'padSmall flex items-center gap-1.5 rounded px-2 py-1 bg-black/35 border',
           style: { color: modeInfo.color, borderColor: `${modeInfo.color}99` },
@@ -2484,6 +2681,43 @@
             scheduleSceneSave(sc, `label:${pad.assetId}`);
           }
         }),
+        el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('sfxGain') }),
+        el('input', {
+          type: 'number',
+          class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs tabular',
+          value: Number.isFinite(Number(pad.gainDb)) ? Number(pad.gainDb) : 0,
+          min: -60,
+          max: 12,
+          step: 1,
+          title: t('sfxGainHint'),
+          'aria-label': t('sfxGain'),
+          'data-focus-key': `sfx-pad-gain:${pad.assetId}`,
+          inputmode: 'numeric',
+          onClick: (e) => e.stopPropagation(),
+          onKeydown: (e) => e.stopPropagation(),
+          onInput: (e) => {
+            const next = Number(String(e.target.value ?? '').trim());
+            if (Number.isFinite(next) && next >= -60 && next <= 12) {
+              pad.gainDb = Math.round(next);
+              state.ui.openSfxPadMenu = pad.assetId;
+              scheduleSceneSave(sc, `gain:${pad.assetId}`);
+            }
+          },
+          onChange: (e) => {
+            const raw = String(e.target.value ?? '').trim();
+            const next = Number(raw);
+            if (raw === '' || !Number.isFinite(next) || next < -60 || next > 12) {
+              e.target.value = Number.isFinite(Number(pad.gainDb)) ? Number(pad.gainDb) : 0;
+              toast(t('sfxGainInvalid'), 'warn');
+              return;
+            }
+            pad.gainDb = Math.round(next);
+            e.target.value = String(pad.gainDb);
+            state.ui.openSfxPadMenu = pad.assetId;
+            scheduleSceneSave(sc, `gain:${pad.assetId}`);
+          }
+        }),
+        el('div', { class: 'text-[10px] text-slate-500 mt-1 px-0.5', text: t('sfxGainHint') }),
         el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('clickBehavior') }),
         el('select', {
           class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs',
@@ -2498,7 +2732,8 @@
         }, [
           el('option', { value: 'poly', text: t('poly') }),
           el('option', { value: 'toggle', text: t('toggle') }),
-          el('option', { value: 'restart', text: t('restart') })
+          el('option', { value: 'restart', text: t('restart') }),
+          el('option', { value: 'loop', text: t('loop') })
         ]),
         el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('hotkey') }),
         el('input', {
@@ -2542,6 +2777,8 @@
     window.addEventListener('keydown', (e) => {
       const sc = activeScene();
       if (!sc) return;
+      const target = e.target;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
       const k = (e.key || '').toLowerCase();
       if (k === ' ') {
         e.preventDefault();

@@ -939,6 +939,26 @@ def make_app(
         conn.close()
         return {"ok": True}
 
+    @app.post("/api/sessions/{session_id}/assets/remove")
+    def remove_session_assets(session_id: str, payload: Dict[str, Any], request: Request) -> Dict[str, Any]:
+        _require_admin(request)
+        asset_ids = payload.get("asset_ids")
+        if not isinstance(asset_ids, list):
+            raise HTTPException(status_code=400, detail="Missing field: asset_ids (list)")
+        cleaned = []
+        for raw_id in asset_ids:
+            asset_id = _clean_text(raw_id, "asset_id", max_length=100)
+            if asset_id not in cleaned:
+                cleaned.append(asset_id)
+        conn = db_connect(db_path)
+        _require_session(conn, session_id)
+        if cleaned:
+            conn.executemany("DELETE FROM session_assets WHERE session_id=? AND asset_id=?", [(session_id, asset_id) for asset_id in cleaned])
+            conn.execute("UPDATE sessions SET updated_at = strftime('%s','now') WHERE id=?", (session_id,))
+        conn.commit()
+        conn.close()
+        return {"ok": True, "removed": len(cleaned)}
+
     @app.delete("/api/sessions/{session_id}/assets/{asset_id}")
     def remove_session_asset(session_id: str, asset_id: str, request: Request) -> Dict[str, Any]:
         _require_admin(request)
