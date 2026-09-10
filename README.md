@@ -59,10 +59,12 @@ The server expects the following structure:
 ```text
 .
 ├── soundboard-server.py
-├── index.html
-├── de.json
-├── en.json
-├── favicon.png
+├── ui-dist
+    ├── index.html
+    └── favicon.png
+├── locale
+    ├── de.json
+    └── en.json
 └── library/
     └── My Campaign/
         ├── Musik/
@@ -111,7 +113,3 @@ Important environment variables:
 ## Security
 
 This project is intended for trusted LAN use. Set an admin token and restrict CORS origins before exposing it beyond a trusted network. Do not commit `.env`, audio libraries, logs, or the SQLite database.
-
-## License
-
-No license has been selected yet. Add a `LICENSE` file before distributing the project publicly.
