@@ -70,7 +70,7 @@ Install Python dependencies according to your project setup, for example using a
 From the project directory:
 
 ```bash
-python3 soundboard-server.py --games-dir ./library --host 0.0.0.0 --port 8000
+python3 soundboard-server.py
 ```
 
 Then open the following address in a browser:
