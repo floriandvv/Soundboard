@@ -161,7 +161,7 @@
         afterCreate: 'Afterwards you can add Music, Ambience and SFX files.',
         newGroup: '+ New group', editGroup: 'Edit group', deleteGroup: 'Delete group', assignGroup: 'Assign group', groupActions: 'Group actions',
         moreAssetsAvailable: '+ {count} more assets available', morePadsHidden: '+ {count} more pads hidden', showAll: 'Show all', showFewer: 'Show fewer',
-        moveUp: 'Move up', moveDown: 'Move down', fadeStop: 'Fade stop', emergencyStop: 'Emergency stop', stopShort: 'Stop', sfxGain: 'SFX gain', sfxGainHint: 'Individual volume for this pad in dB (−60 to +12).', sfxGainInvalid: 'Enter a value between −60 and +12 dB.', loop: 'Loop', loopHint: 'Click to start the loop, click again to stop it.'
+        moveUp: 'Move up', moveDown: 'Move down', fadeStop: 'Fade stop', emergencyStop: 'Emergency stop', stopShort: 'Stop', sfxGain: 'SFX gain', sfxGainHint: 'Individual volume for this pad in dB (−60 to +12).', sfxGainInvalid: 'Enter a value between −60 and +12 dB.', loop: 'Loop', loopHint: 'Click to start the loop, click again to stop it.', roundRobin: 'Round-robin', roundRobinHint: 'Each click plays the next asset from the pool.', hold: 'Hold', holdHint: 'Plays while the button or hotkey is held.', assetPool: 'Asset pool', chooseAssetPool: 'Choose assets for this pool', assetPoolHint: 'Assets are played in the order added.', random: 'Random', randomOn: 'Random order enabled', randomOff: 'Pool order enabled', noAssetPool: 'Choose at least one asset for the pool.'
       }
     };
     let translations = fallbackTranslations;
@@ -291,6 +291,9 @@
           playing: new Set(),
           voices: new Map(),
           allVoices: new Set(),
+          roundRobinIndices: new Map(),
+          holdVoices: new Map(),
+          holdRequests: new Set(),
         },
         pendingSaves: new Map(),
         ducking: { enabled: true, active: false, voiceCount: 0, amountDb: -8, releaseMs: 500, releaseTimer: null }
@@ -331,6 +334,38 @@
       target.focus({ preventScroll: true });
       if (info.start != null && typeof target.setSelectionRange === 'function') {
         try { target.setSelectionRange(info.start, info.end); } catch {}
+      }
+    }
+
+    function capturePadMenuScroll() {
+      if (!state.ui.openSfxPadMenu) return null;
+      const menu = document.querySelector('[data-menu="1"]');
+      if (!menu) return null;
+      return { assetId: String(state.ui.openSfxPadMenu), top: menu.scrollTop };
+    }
+
+    function restorePadMenuScroll(info) {
+      if (!info) return;
+      const menu = document.querySelector('[data-menu="1"]');
+      if (!menu || String(state.ui.openSfxPadMenu) !== info.assetId) return;
+      menu.scrollTop = info.top;
+    }
+
+    const ACTIVE_SESSION_STORAGE_PREFIX = 'dnd-soundboard-active-session:';
+
+    function rememberActiveSession() {
+      if (!state.activeGameId || !state.activeSessionId) return;
+      try {
+        localStorage.setItem(`${ACTIVE_SESSION_STORAGE_PREFIX}${state.activeGameId}`, String(state.activeSessionId));
+      } catch {}
+    }
+
+    function rememberedSessionId(gameId) {
+      if (!gameId) return null;
+      try {
+        return localStorage.getItem(`${ACTIVE_SESSION_STORAGE_PREFIX}${gameId}`) || null;
+      } catch {
+        return null;
       }
     }
 
@@ -400,9 +435,10 @@
           dialog.input ? el('input', { type: 'text', 'data-dialog-title': '1', 'data-dialog-input': '1', autocomplete: 'off', spellcheck: false, disabled: !!dialog.submitting, class: 'mt-4 w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-sm disabled:opacity-60', value: dialog.value || '', placeholder: dialog.placeholder || '', onInput: (e) => { dialog.value = e.target.value; }, onChange: (e) => { dialog.value = e.target.value; }, onMouseDown: (e) => e.stopPropagation(), onKeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); submit(); } if (e.key === 'Escape') closeDialog(); } }) : null,
           dialog.assetPicker ? (() => {
             const query = (state.ui.dialogAssetQuery || '').trim().toLowerCase();
+            const hasAssetBucketFilter = dialog.assetBucketFilter !== false;
             const bucket = state.ui.dialogAssetBucket || 'Alle';
             const labels = { Alle: t('assetFilterAll'), Musik: t('assetFilterMusic'), Ambience: t('assetFilterAmbience'), SFX: t('assetFilterSfx') };
-            const options = (dialog.assetOptions || []).filter(asset => (bucket === 'Alle' || asset.bucket === bucket) && (!query || `${asset.filename} ${asset.rel_path || ''}`.toLowerCase().includes(query)));
+            const options = (dialog.assetOptions || []).filter(asset => (!hasAssetBucketFilter || bucket === 'Alle' || asset.bucket === bucket) && (!query || `${asset.filename} ${asset.rel_path || ''}`.toLowerCase().includes(query)));
             return el('div', { class: 'mt-4' }, [
               el('div', { class: 'flex items-center justify-between gap-2 mb-2' }, [
                 el('div', { class: 'text-xs font-semibold text-slate-400', text: t('chooseAssets') }),
@@ -415,7 +451,7 @@
                 } }),
               ]),
               el('div', { class: 'flex gap-2 mb-2' }, [
-                el('select', { class: 'px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', value: bucket, onChange: e => { state.ui.dialogAssetBucket = e.target.value; render(); } }, Object.keys(labels).map(k => el('option', { value: k, text: labels[k], selected: k === bucket }))),
+                hasAssetBucketFilter ? el('select', { class: 'px-2 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', value: bucket, onChange: e => { state.ui.dialogAssetBucket = e.target.value; render(); } }, Object.keys(labels).map(k => el('option', { value: k, text: labels[k], selected: k === bucket }))) : null,
                 el('input', { class: 'flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs', placeholder: t('assetSearch'), value: state.ui.dialogAssetQuery || '', onInput: e => { state.ui.dialogAssetQuery = e.target.value; render(); } })
               ]),
               el('div', { class: 'h-[260px] overflow-y-auto rounded-lg border border-slate-700 bg-slate-950/70 p-2 space-y-1' }, options.map(asset => el('label', { class: 'flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-800 text-xs' }, [
@@ -579,6 +615,15 @@
       for (const layer of (sc.ambienceBank || [])) delete layer.startOnEnter;
       for (const pad of (sc.sfxBank || [])) {
         if (typeof pad.sceneStart !== 'boolean') pad.sceneStart = Boolean(pad.startOnEnter);
+        if (!['poly', 'toggle', 'restart', 'loop', 'roundRobin', 'hold'].includes(pad.mode)) pad.mode = 'poly';
+        if (!Array.isArray(pad.assetPool)) {
+          pad.assetPool = Array.isArray(pad.roundRobinPool) ? [...pad.roundRobinPool] : [];
+        }
+        pad.assetPool = [...new Set(pad.assetPool.filter(Boolean))];
+        if (!Number.isInteger(pad.roundRobinIndex) || pad.roundRobinIndex < 0) pad.roundRobinIndex = 0;
+        if (typeof pad.random !== 'boolean') pad.random = Boolean(pad.roundRobinRandom);
+        delete pad.roundRobinPool;
+        delete pad.roundRobinRandom;
         delete pad.startOnEnter;
       }
       syncSfxAutomation(sc);
@@ -979,16 +1024,20 @@
         try { URL.revokeObjectURL(voice.url); } catch {}
       }
       state.audio.sfx.playing.delete(assetId);
+      if (voice.ownerPadId) state.audio.sfx.playing.delete(voice.ownerPadId);
       state.audio.sfx.allVoices.delete(voice);
+      if (voice.ownerPadId && state.audio.sfx.holdVoices.get(voice.ownerPadId) === voice) {
+        state.audio.sfx.holdVoices.delete(voice.ownerPadId);
+      }
       endSfxDucking();
     }
 
     function stopSfx(assetId=null, { fadeSec=0.05 } = {}) {
       const voices = assetId
-        ? Array.from(state.audio.sfx.allVoices).filter(v => v.assetId === assetId)
+        ? Array.from(state.audio.sfx.allVoices).filter(v => v.assetId === assetId || v.ownerPadId === assetId)
         : Array.from(state.audio.sfx.allVoices);
       for (const voice of voices) {
-        const id = voice.assetId;
+        const id = voice.ownerPadId || voice.assetId;
         if (!voice) continue;
         const ctx = state.audio.ctx;
         try {
@@ -1026,19 +1075,19 @@
       render();
     }
 
-    function createSfxVoice(assetId, cached, ctx) {
+    function createSfxVoice(assetId, cached, ctx, { padId = assetId, padMode = null, loop = null } = {}) {
       const out = state.audio.buses.sfx.gain;
       const pad = activeScene()?.sfxBank?.find(item => item.assetId === assetId);
       const gainDb = clamp(Number.isFinite(Number(pad?.gainDb)) ? Number(pad.gainDb) : 0, -60, 12);
-      const padMode = pad?.mode || 'poly';
-      const loop = padMode === 'loop';
-      const voice = { assetId, mode: cached.mode, padMode, loop, gain: null, src: null, audioEl: null, url: cached.mode === 'element' ? cached.url : null, gainDb };
+      const effectiveMode = padMode || pad?.mode || 'poly';
+      const shouldLoop = loop == null ? effectiveMode === 'loop' : !!loop;
+      const voice = { assetId, ownerPadId: padId, mode: cached.mode, padMode: effectiveMode, loop: shouldLoop, gain: null, src: null, audioEl: null, url: cached.mode === 'element' ? cached.url : null, gainDb };
       state.audio.sfx.allVoices.add(voice);
       if (cached.mode === 'element') {
         const audioEl = new Audio(cached.url);
         audioEl.preload = 'auto';
         audioEl.crossOrigin = 'anonymous';
-        audioEl.loop = loop;
+        audioEl.loop = shouldLoop;
         const src = ctx.createMediaElementSource(audioEl);
         const g = ctx.createGain();
         g.gain.value = dbToGain(gainDb);
@@ -1049,9 +1098,9 @@
         voice.gain = g;
         audioEl.onended = () => {
           if (!state.audio.sfx.allVoices.has(voice)) return;
-          if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
-          clearSfxVoice(assetId, voice);
-          state.audio.sfx.status.set(assetId, 'bereit');
+          if (state.audio.sfx.voices.get(voice.ownerPadId) === voice) state.audio.sfx.voices.delete(voice.ownerPadId);
+          clearSfxVoice(voice.ownerPadId || assetId, voice);
+          state.audio.sfx.status.set(voice.ownerPadId || assetId, 'bereit');
           render();
         };
         audioEl.play().catch(() => {
@@ -1065,15 +1114,15 @@
         const src = ctx.createBufferSource();
         const g = ctx.createGain();
         src.buffer = cached.buffer;
-        src.loop = loop;
+        src.loop = shouldLoop;
         g.gain.value = dbToGain(gainDb);
         src.connect(g);
         g.connect(out);
         src.onended = () => {
           if (!state.audio.sfx.allVoices.has(voice)) return;
-          if (state.audio.sfx.voices.get(assetId) === voice) state.audio.sfx.voices.delete(assetId);
-          clearSfxVoice(assetId, voice);
-          state.audio.sfx.status.set(assetId, 'bereit');
+          if (state.audio.sfx.voices.get(voice.ownerPadId) === voice) state.audio.sfx.voices.delete(voice.ownerPadId);
+          clearSfxVoice(voice.ownerPadId || assetId, voice);
+          state.audio.sfx.status.set(voice.ownerPadId || assetId, 'bereit');
           render();
         };
         src.start(t0);
@@ -1083,34 +1132,85 @@
       return voice;
     }
 
-    function triggerSfx(assetId) {
-      if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return; }
-      if (!playbackIsRunning()) { toast(t('playbackFirst'), 'warn'); return; }
+    function resolveRoundRobinAsset(pad) {
+      const pool = Array.isArray(pad?.assetPool) ? pad.assetPool.filter(Boolean) : [];
+      if (!pool.length) return null;
+      if (pad.random) return pool[Math.floor(Math.random() * pool.length)];
+      const index = Number.isInteger(pad.roundRobinIndex) ? pad.roundRobinIndex : 0;
+      const assetId = pool[index % pool.length];
+      pad.roundRobinIndex = (index + 1) % pool.length;
+      return assetId;
+    }
+
+    function triggerSfx(assetId, { padId = assetId, forceMode = null, resolvedAssetId = null } = {}) {
+      if (!state.audio.unlocked) { toast(t('enableAudioFirst'), 'warn'); return null; }
+      if (!playbackIsRunning()) { toast(t('playbackFirst'), 'warn'); return null; }
+      const pad = activeScene()?.sfxBank?.find(p => p.assetId === padId);
+      const mode = forceMode || pad?.mode || 'poly';
+      const targetAssetId = resolvedAssetId || (mode === 'roundRobin' ? resolveRoundRobinAsset(pad) : assetId);
+      if (!targetAssetId) { toast(t('noAssetPool'), 'warn'); return null; }
       const ctx = ensureAudio();
-      const cached = state.audio.sfx.cache.get(assetId);
+      const cached = state.audio.sfx.cache.get(targetAssetId);
       if (!cached) {
-        const asset = (state.library?.SFX || []).find(a => a.id === assetId);
-        if (!asset) {
-          setAssetStatus('sfx', assetId, 'unavailable', 'SFX not available');
-          return;
-        }
-        if (state.audio.sfx.loading.has(assetId)) return;
-        setAssetStatus('sfx', assetId, 'loading');
-        preloadSfxAsset(assetId, asset, ctx).then(() => {
-          if (state.audio.sfx.cache.has(assetId)) triggerSfx(assetId);
+        const asset = (state.library?.SFX || []).find(a => a.id === targetAssetId);
+        if (!asset) { setAssetStatus('sfx', targetAssetId, 'unavailable', 'SFX not available'); return null; }
+        if (state.audio.sfx.loading.has(targetAssetId)) return null;
+        setAssetStatus('sfx', targetAssetId, 'loading');
+        preloadSfxAsset(targetAssetId, asset, ctx).then(() => {
+          if (state.audio.sfx.cache.has(targetAssetId)) {
+            if (mode === 'hold' && !state.audio.sfx.holdRequests.has(padId)) return;
+            triggerSfx(assetId, { padId, forceMode, resolvedAssetId: targetAssetId });
+          }
         });
-        return;
+        return null;
       }
-      const pad = activeScene()?.sfxBank?.find(p => p.assetId === assetId);
-      const mode = pad?.mode || 'poly';
-      const current = state.audio.sfx.voices.get(assetId);
-      if ((mode === 'toggle' || mode === 'loop') && current) { stopSfx(assetId); return; }
-      if (mode === 'restart' && current) stopSfx(assetId, { fadeSec: 0.01 });
-      const voice = createSfxVoice(assetId, cached, ctx);
-      state.audio.sfx.voices.set(assetId, voice);
-      state.audio.sfx.playing.add(assetId);
+      const current = state.audio.sfx.voices.get(padId);
+      if (mode === 'hold') {
+        if (current) return current;
+      } else if ((mode === 'toggle' || mode === 'loop') && current) {
+        stopSfx(padId);
+        return null;
+      } else if (mode === 'restart' && current) {
+        stopSfx(padId, { fadeSec: 0.01 });
+      }
+      const voice = createSfxVoice(targetAssetId, cached, ctx, { padId, padMode: mode, loop: mode === 'loop' || mode === 'hold' });
+      state.audio.sfx.voices.set(padId, voice);
+      state.audio.sfx.playing.add(padId);
+      if (mode === 'hold') {
+        state.audio.sfx.holdVoices.set(padId, voice);
+        state.audio.sfx.holdRequests.delete(padId);
+      }
       beginSfxDucking();
-      setAssetStatus('sfx', assetId, 'playing');
+      setAssetStatus('sfx', padId, 'playing');
+      return voice;
+    }
+
+    function startHoldSfx(pad) {
+      if (!pad || state.audio.sfx.holdVoices.has(pad.assetId) || state.audio.sfx.holdRequests.has(pad.assetId)) return;
+      state.audio.sfx.holdRequests.add(pad.assetId);
+      const voice = triggerSfx(pad.assetId, { padId: pad.assetId, forceMode: 'hold' });
+      if (voice) {
+        state.audio.sfx.holdVoices.set(pad.assetId, voice);
+        state.audio.sfx.holdRequests.delete(pad.assetId);
+      }
+    }
+
+    function stopHoldSfx(pad) {
+      if (!pad) return;
+      state.audio.sfx.holdRequests.delete(pad.assetId);
+      const voice = state.audio.sfx.holdVoices.get(pad.assetId);
+      if (voice) stopSfx(pad.assetId, { fadeSec: 0.02 });
+      state.audio.sfx.holdVoices.delete(pad.assetId);
+    }
+
+    function triggerPad(pad) {
+      if (!pad) return;
+      if (pad.mode === 'hold') startHoldSfx(pad);
+      else triggerSfx(pad.assetId, { padId: pad.assetId });
+    }
+
+    function releasePad(pad) {
+      if (pad?.mode === 'hold') stopHoldSfx(pad);
     }
 
     function stopAudio() {
@@ -1307,7 +1407,11 @@
         // Sessions
         const sessRes = await API.sessions(state.activeGameId);
         state.sessions = sessRes.sessions || [];
-        state.activeSessionId = state.sessions[0]?.id || null;
+        const rememberedId = rememberedSessionId(state.activeGameId);
+        state.activeSessionId = state.sessions.some(session => session.id === rememberedId)
+          ? rememberedId
+          : (state.sessions[0]?.id || null);
+        rememberActiveSession();
         state.sessionAssets = [];
         if (state.activeSessionId) {
           const sa = await API.sessionAssets(state.activeSessionId);
@@ -1400,7 +1504,7 @@
       if (!sc) return;
       if (sc.sfxBank.some(p => p.assetId === assetId)) return;
       const idx = sc.sfxBank.length;
-      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '', sceneStart: false, gainDb: 0 });
+      sc.sfxBank.push({ assetId, color: SWATCHES[idx % SWATCHES.length], key: String(idx + 1), mode: 'poly', label: '', sceneStart: false, gainDb: 0, assetPool: [assetId], random: false, roundRobinIndex: 0 });
       scheduleSceneSave(sc, 'bank-edit');
       render();
     }
@@ -1735,6 +1839,7 @@
         const res = await API.createSession({ game_id: state.activeGameId, title: cleanName });
         state.sessions = [res.session];
         state.activeSessionId = res.session.id;
+        rememberActiveSession();
         const sa = await API.sessionAssets(state.activeSessionId);
         state.sessionAssets = sa.assets || [];
         const libRes = await API.library(state.activeGameId, state.activeSessionId);
@@ -1906,6 +2011,7 @@
 
     function render() {
       const focusState = captureFocusState();
+      const padMenuScroll = capturePadMenuScroll();
       const root = $('#app');
       root.innerHTML = '';
       const hasActiveGame = Boolean(
@@ -1996,6 +2102,7 @@
               stopAllAudio({ panicStop: false });
               state.audio.playbackMode = 'stopped';
               state.activeSessionId = e.target.value || null;
+              rememberActiveSession();
               try {
                 if (state.activeSessionId) {
                   const sa = await API.sessionAssets(state.activeSessionId);
@@ -2024,13 +2131,13 @@
               el('div', { class: 'absolute right-0 top-full mt-2 z-30 min-w-40 rounded-xl menu p-1 space-y-1' }, [
                 el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('editGame'), onClick: () => openGameSetupDialog({ editing: true }) }),
                 el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-xs font-semibold', text: t('duplicate'), onClick: async () => {
-                  try { const res = await API.duplicateSession(state.activeSessionId); state.sessions.unshift(res.session); state.activeSessionId = res.session.id; await reloadActiveSession(); toast(t('gameDuplicated'), 'ok'); render(); }
+                  try { const res = await API.duplicateSession(state.activeSessionId); state.sessions.unshift(res.session); state.activeSessionId = res.session.id; rememberActiveSession(); await reloadActiveSession(); toast(t('gameDuplicated'), 'ok'); render(); }
                   catch (e) { toast(t('duplicateGameFailed', { error: e.message }), 'warn'); }
                 }}),
                 el('button', { class: 'w-full text-left px-3 py-2 rounded-lg hover:bg-rose-950 text-rose-300 text-xs font-semibold', text: t('deleteGame'), onClick: () => {
                   const current = state.sessions.find(s => s.id === state.activeSessionId);
                   openDialog({ title: t('deleteGame'), message: t('deleteGameConfirm', { title: current?.title || '' }), danger: true, confirmText: t('delete'), onSubmit: async () => {
-                    try { await API.deleteSession(state.activeSessionId); state.sessions = state.sessions.filter(s => s.id !== state.activeSessionId); state.activeSessionId = state.sessions[0]?.id || null; await reloadActiveSession(); toast(t('gameDeleted'), 'ok'); render(); }
+                    try { await API.deleteSession(state.activeSessionId); state.sessions = state.sessions.filter(s => s.id !== state.activeSessionId); state.activeSessionId = state.sessions[0]?.id || null; rememberActiveSession(); await reloadActiveSession(); toast(t('gameDeleted'), 'ok'); render(); }
                     catch (e) { toast(t('deleteGameFailed', { error: e.message }), 'warn'); }
                   }});
                 }})
@@ -2158,6 +2265,7 @@
       if (dialog) root.append(dialog);
 
       restoreFocusState(focusState);
+      requestAnimationFrame(() => restorePadMenuScroll(padMenuScroll));
 
       if (state.ui.busy) {
         root.append(el('div', { class: 'fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center' }, [
@@ -2572,9 +2680,11 @@
       }[padStatus] || padStatus;
       const modeInfo = {
         poly: { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') },
-        toggle: { icon: '◉', label: t('toggle'), color: '#34d399', description: t('toggleHint') },
+        toggle: { icon: '⏸︎', label: t('toggle'), color: '#34d399', description: t('toggleHint') },
         restart: { icon: '↪︎', label: t('restart'), color: '#fb7185', description: t('restartHint') },
         loop: { icon: '↻', label: t('loop'), color: '#c084fc', description: t('loopHint') },
+        roundRobin: { icon: pad.random ? '🔀︎' : '⇄', label: t('roundRobin'), color: '#38bdf8', description: t('roundRobinHint') },
+        hold: { icon: '◉', label: t('hold'), color: '#f97316', description: t('holdHint') },
       }[pad.mode] || { icon: '✦', label: t('poly'), color: '#fbbf24', description: t('polyHint') };
       const isSmallPad = sc?.sfxPadSize === 'small';
       // Size is controlled once per bank in renderSfxCard. The pad itself fills
@@ -2586,7 +2696,20 @@
           background: `linear-gradient(160deg, ${pad.color}, ${pad.color}cc)`,
           boxShadow: `0 10px 26px -10px ${pad.color}88`,
         },
-        onClick: () => triggerSfx(pad.assetId)
+        onClick: () => { if (pad.mode !== 'hold') triggerPad(pad); },
+        onPointerdown: (e) => {
+          if (pad.mode !== 'hold') return;
+          e.preventDefault();
+          try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+          startHoldSfx(pad);
+        },
+        onPointerup: (e) => {
+          if (pad.mode !== 'hold') return;
+          e.preventDefault();
+          releasePad(pad);
+        },
+        onPointercancel: () => releasePad(pad),
+        onPointerleave: (e) => { if (pad.mode === 'hold' && e.buttons) releasePad(pad); }
       }, isSmallPad ? [
         el('div', {
           class: 'text-3xl leading-none font-black drop-shadow',
@@ -2624,6 +2747,7 @@
         text: '⋯',
         title: t('padSettings'),
         'aria-label': t('padSettings'),
+        'data-pad-menu-button': '1',
         onClick: (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -2733,8 +2857,57 @@
           el('option', { value: 'poly', text: t('poly') }),
           el('option', { value: 'toggle', text: t('toggle') }),
           el('option', { value: 'restart', text: t('restart') }),
-          el('option', { value: 'loop', text: t('loop') })
+          el('option', { value: 'loop', text: t('loop') }),
+          el('option', { value: 'roundRobin', text: t('roundRobin') }),
+          el('option', { value: 'hold', text: t('hold') })
         ]),
+        pad.mode === 'roundRobin' ? el('div', { class: 'mt-2 rounded-lg border border-sky-800/70 bg-sky-950/30 p-2' }, [
+          el('div', { class: 'text-[11px] text-sky-200 mb-1', text: t('assetPool') }),
+          el('div', { class: 'text-[10px] text-slate-400 mb-2', text: pad.assetPool?.length ? `${pad.assetPool.length} ${state.language === 'en' ? 'assets selected' : 'Assets ausgewählt'}` : t('poolEmpty') }),
+          el('button', {
+            type: 'button',
+            class: 'w-full px-2 py-1.5 rounded-lg btn text-xs font-semibold',
+            text: t('chooseAssetPool'),
+            onClick: (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const options = (state.library?.SFX || []).map(asset => ({ ...asset, bucket: 'SFX' }));
+              openDialog({
+                title: t('chooseAssetPool'),
+                message: t('assetPoolHint'),
+                assetPicker: true,
+                assetBucketFilter: false,
+                assetOptions: options,
+                selectedAssets: [...new Set(pad.assetPool || [])],
+                confirmText: t('save'),
+                onSubmit: async (_value, _color, assets) => {
+                  const allowed = new Set(options.map(asset => asset.id));
+                  pad.assetPool = [...new Set((assets || []).filter(id => allowed.has(id)))];
+                  if (!pad.assetPool.length) pad.assetPool = [pad.assetId];
+                  pad.roundRobinIndex = 0;
+                  state.ui.openSfxPadMenu = pad.assetId;
+                  await saveScene(sc, { quiet: true });
+                  render();
+                }
+              });
+            }
+          }),
+          el('div', { class: 'text-[10px] text-slate-500 mt-1', text: t('assetPoolHint') })
+        ]) : null,
+        pad.mode === 'roundRobin' ? el('label', { class: 'mt-2 flex items-center gap-2 text-xs text-slate-300 cursor-pointer' }, [
+          el('input', {
+            type: 'checkbox',
+            checked: !!pad.random,
+            class: 'accent-sky-400',
+            onChange: (e) => {
+              pad.random = !!e.target.checked;
+              state.ui.openSfxPadMenu = pad.assetId;
+              scheduleSceneSave(sc, `random:${pad.assetId}`);
+              render();
+            }
+          }),
+          el('span', { text: t('random') })
+        ]) : null,
         el('div', { class: 'text-[11px] text-slate-400 mb-1.5 mt-2 px-0.5', text: t('hotkey') }),
         el('input', {
           class: 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm kmono',
@@ -2773,6 +2946,21 @@
       return menu;
     }
 
+    // Close an open pad menu when the user clicks anywhere outside it.
+    // Menu controls and the ellipsis button stop propagation themselves, so
+    // editing a pad or toggling the same menu remains unaffected.
+    window.addEventListener('pointerdown', (e) => {
+      // An asset-picker dialog is opened from the pad menu. Keep the menu
+      // state intact while interacting with that dialog; otherwise the first
+      // click inside the pool would close the underlying menu first.
+      if (state.ui.dialog?.assetPicker) return;
+      if (!state.ui.openSfxPadMenu) return;
+      const target = e.target;
+      if (target?.closest?.('[data-menu="1"]') || target?.closest?.('[data-pad-menu-button="1"]')) return;
+      state.ui.openSfxPadMenu = null;
+      render();
+    });
+
     // ---------------------- Keyboard hotkeys ----------------------
     window.addEventListener('keydown', (e) => {
       const sc = activeScene();
@@ -2788,8 +2976,31 @@
       const pad = (sc.sfxBank || []).find(p => (p.key || '').toLowerCase() === k);
       if (pad) {
         e.preventDefault();
-        triggerSfx(pad.assetId);
+        if (pad.mode === 'hold') {
+          if (e.repeat) return;
+          startHoldSfx(pad);
+        } else {
+          triggerPad(pad);
+        }
       }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const sc = activeScene();
+      if (!sc) return;
+      const target = e.target;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
+      const k = (e.key || '').toLowerCase();
+      const pad = (sc.sfxBank || []).find(p => (p.key || '').toLowerCase() === k);
+      if (pad?.mode === 'hold') {
+        e.preventDefault();
+        releasePad(pad);
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      const sc = activeScene();
+      for (const pad of (sc?.sfxBank || [])) if (pad.mode === 'hold') releasePad(pad);
     });
 
     // ---------------------- Boot ----------------------

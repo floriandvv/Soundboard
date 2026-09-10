@@ -387,7 +387,7 @@ def make_app(
     logger = configure_logging(log_path)
     limiter = SlidingWindowRateLimiter(limit=max(1, write_rate_limit), window_seconds=60)
 
-    app = FastAPI(title="DnD Soundboard Server", version="0.3")
+    app = FastAPI(title="DnD Soundboard Server", version="0.4.0")
 
     origins = cors_origins if cors_origins is not None else ["*"]
     app.add_middleware(
@@ -665,6 +665,25 @@ def make_app(
         sfx_ids = [item["assetId"] for item in sfx_bank]
         _validate_asset_ids(ambience_ids, game_id, field="ambienceBank", expected_bucket="Ambience")
         _validate_asset_ids(sfx_ids, game_id, field="sfxBank", expected_bucket="SFX")
+        all_game_sfx_ids = {
+            asset.id for asset in _asset_map().values()
+            if asset.game_id == game_id and asset.bucket == "SFX"
+        }
+        allowed_modes = {"poly", "toggle", "restart", "loop", "roundRobin", "hold"}
+        for pad in sfx_bank:
+            mode = pad.get("mode", "poly")
+            if mode not in allowed_modes:
+                raise HTTPException(status_code=422, detail={"code": "invalid_sfx_mode", "field": "sfxBank", "message": "Unbekannter SFX-Modus."})
+            pool = pad.get("assetPool", pad.get("roundRobinPool", []))
+            if pool is None:
+                pool = []
+            if not isinstance(pool, list) or any(not isinstance(item, str) or item not in all_game_sfx_ids for item in pool):
+                raise HTTPException(status_code=422, detail={"code": "invalid_sfx_pool", "field": "sfxBank", "message": "Der Assetpool muss aus SFX-Assets dieses Spiels bestehen."})
+            if mode == "roundRobin" and not pool:
+                raise HTTPException(status_code=422, detail={"code": "empty_sfx_pool", "field": "sfxBank", "message": "Round-Robin benötigt mindestens ein Pool-Asset."})
+            random_value = pad.get("random", pad.get("roundRobinRandom", False))
+            if not isinstance(random_value, bool):
+                raise HTTPException(status_code=422, detail={"code": "invalid_sfx_random", "field": "sfxBank", "message": "random muss boolesch sein."})
         group_color = payload.get("groupColor")
         if group_color is not None:
             group_color = _clean_text(group_color, "groupColor", max_length=20)
