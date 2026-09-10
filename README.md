@@ -54,7 +54,7 @@ See [Release Notes 0.4.0](RELEASE_NOTES_0.4.0.md) for the complete change list.
   - **Restart:** `↪︎`
   - **Loop:** `↻`
 - Existing favicon support for `favicon.ico` and `favicon.png`
-- 100 concise English prompts for generating SFX assets
+- some SFX assets
 
 ## Requirements
 
