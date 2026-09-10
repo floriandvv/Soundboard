@@ -50,9 +50,6 @@ See [Release Notes 0.4.0](RELEASE_NOTES_0.4.0.md) for the complete change list.
 - Global hotkeys disabled while editing form fields
 - Compact scene automation badge with two opposing play triangles
 - Consistent stop controls for Music, Ambience, and SFX
-- Distinct mode symbols:
-  - **Restart:** `↪︎`
-  - **Loop:** `↻`
 - Existing favicon support for `favicon.ico` and `favicon.png`
 - some SFX assets
 
@@ -61,16 +58,15 @@ See [Release Notes 0.4.0](RELEASE_NOTES_0.4.0.md) for the complete change list.
 ```text
 .
 ├── soundboard-server.py   # FastAPI application and API server
-├── index.html             # Single-file browser UI
-├── de.json                # German translations (copied to ui-dist/locale/)
-├── en.json                # English translations (copied to ui-dist/locale/)
 ├── .env                   # Local configuration; keep private
 ├── library/               # Local audio libraries (keep out of Git)
+├── locale/
+    ├── de.json                # German translations (copied to ui-dist/locale/)
+    └── en.json                # English translations (copied to ui-dist/locale/)
 ├── ui-dist/               # Served UI directory in the default configuration
-├── logs/                  # Optional rotating server logs
-└── docs/
-    ├── GETTING_STARTED.md
-    └── INITIAL_COMMIT_MESSAGE.txt
+    ├── index.html             # Single-file browser UI
+    └── favicon.ico
+└── logs/                  # Optional rotating server logs
 ```
 
 ## Quick start
