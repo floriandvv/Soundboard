@@ -57,6 +57,7 @@ The server expects the following structure:
 ```text
 .
 ├── soundboard-server.py
+├── .env
 ├── ui-dist
     ├── index.html
     └── favicon.png
@@ -70,15 +71,8 @@ The server expects the following structure:
         └── SFX/
 ```
 
-Copy the UI files into the configured UI directory:
 
-```bash
-mkdir -p ui-dist/locale
-cp index.html favicon.png ui-dist/
-cp de.json en.json ui-dist/locale/
-```
-
-Create or edit `.env` if needed. The default configuration uses `./library`, `./soundboard.db`, and port `8000`.
+Edit `.env` if needed. The default configuration uses `./library`, `./soundboard.db`, and port `8000`.
 
 ## Run
 
