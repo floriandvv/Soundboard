@@ -54,11 +54,7 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
 - Global hotkeys disabled while editing form fields
 - Compact scene automation badge with two opposing play triangles
 - Consistent stop controls for Music, Ambience, and SFX
-- Distinct mode symbols:
-  - **Restart:** `↪︎`
-  - **Loop:** `↻`
 - Existing favicon support for `favicon.ico` and `favicon.png`
-- 100 concise English prompts for generating SFX assets
 
 ## Requirements
 
