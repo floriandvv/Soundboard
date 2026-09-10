@@ -34,11 +34,13 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
   - individual gain from −60 dB to +12 dB
   - poly, toggle, restart, and loop modes
   - marking for automatic playback on scene change
-- Four SFX playback modes:
+- Six SFX playback modes:
   - **Poly:** Each click starts an additional playback instance.
   - **Toggle:** One click starts playback; the next click stops it.
   - **Restart:** A new click starts the sound again from the beginning.
   - **Loop:** One click starts continuous repetition; the next click stops it.
+  - **Round Robin:** Each click starts a different asset from a pool; Random option available.
+  - **Hold:** As long as the pad or shortkey is pressed the asset plays.
 - Scene automation for music, ambience, and SFX
 - Automatic SFX automation synchronization:
   - marking at least one pad enables global SFX automation
