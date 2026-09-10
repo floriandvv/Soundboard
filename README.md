@@ -41,7 +41,6 @@ cd REPOSITORY
 
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
 ```
 
 On Windows PowerShell:
@@ -49,7 +48,6 @@ On Windows PowerShell:
 ```powershell
 py -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
 ```
 
 ## Setup
