@@ -2,6 +2,8 @@
 
 A browser-based soundboard for tabletop role-playing sessions with music playlists, ambience layers, and instantly triggered SFX pads.
 
+![DnD Soundboard screenshot](assets/screenshot.png)
+
 ## Version
 
 **Current: 0.5.0**
