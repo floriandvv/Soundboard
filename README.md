@@ -56,231 +56,246 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
 - Consistent stop controls for Music, Ambience, and SFX
 - Existing favicon support for `favicon.ico` and `favicon.png`
 
-## Requirements
+# DnD Soundboard
 
-- Python 3.10 or newer
-- FastAPI
-- Uvicorn
-- A modern browser with Web Audio API support
+A browser-based soundboard for tabletop role-playing sessions with music playlists, ambience layers, and instantly triggered SFX pads.
 
-Install Python dependencies according to your project setup, for example using an existing `requirements.txt` file.
+## Version
 
-## Start the Server
+Current: 0.5.0 — Adds Random, Round Robin, and Hold SFX modes, configurable asset pools, improved scene automation, persistent pad-menu state, and restoration of the active game and session after refresh.
 
-From the project directory:
+See Release Notes 0.5.0 for the complete change list.
 
-```bash
-python3 soundboard-server.py --games-dir ./library --host 0.0.0.0 --port 8000
+## Features
+
+- Game libraries with separate audio categories
+- Sessions within a game
+- Scenes with groups, tags, and custom audio configuration
+- Music playlists with:
+
+  
+  - playback, pause, and track selection
+  - previous/next track controls
+  - track loop, playlist loop, and loop-off modes
+  - crossfade
+- Multiple ambience layers with:
+
+  
+  - independent on/off control
+  - individual volume
+  - fade duration
+  - scene-change automation
+- SFX pads with:
+
+  
+  - customizable colors
+  - editable pad names
+  - hotkeys
+  - individual gain from −60 dB to +12 dB
+  - poly, toggle, restart, and loop modes
+  - marking for automatic playback on scene change
+- Four SFX playback modes:
+
+  
+  - **Poly:** Each click starts an additional playback instance.
+  - **Toggle:** One click starts playback; the next click stops it.
+  - **Restart:** A new click starts the sound again from the beginning.
+  - **Loop:** One click starts continuous repetition; the next click stops it.
+- Scene automation for music, ambience, and SFX
+- Automatic SFX automation synchronization:
+
+  
+  - marking at least one pad enables global SFX automation
+  - unmarking the last pad disables it
+  - disabling global SFX automation removes all pad markers
+- Audio ducking for voice playback
+- Master, bus, layer, and pad volume controls
+- German and English localization
+- Localized validation and help text for SFX gain and Loop mode
+- Focus-preserving pad settings menus
+- Global hotkeys disabled while editing form fields
+- Compact scene automation badge with two opposing play triangles
+- Consistent stop controls for Music, Ambience, and SFX
+- Existing favicon support for `favicon.ico` and `favicon.png`
+- some SFX assets
+
+## Repository layout
+
+\`\`\`text
+
+.
+
+├── [soundboard-server.py](http://soundboard-server.py)   # FastAPI application and API server
+
+├── .env                   # Local configuration; keep private
+
+├── library/               # Local audio libraries (keep out of Git)
+
+├── locale/
+
+```
+├── de.json                # German translations (copied to ui-dist/locale/)
+
+└── en.json                # English translations (copied to ui-dist/locale/)
 ```
 
-Then open the following address in a browser:
+├── ui-dist/               # Served UI directory in the default configuration
 
-```text
-http://localhost:8000
+```
+├── index.html             # Single-file browser UI
+
+└── favicon.ico
 ```
 
-To access the Soundboard from another device on the local network:
+└── logs/                  # Optional rotating server logs
 
-```text
-http://<server-ip>:8000
-```
+\`\`\`
 
-## Library Structure
+## Quick start
 
-Audio files are organized by game and audio category:
+### 1. Create a virtual environment
 
-```text
+\`\`\`bash
+
+python3 -m venv .venv
+
+source .venv/bin/activate
+
+\`\`\`
+
+On Windows PowerShell:
+
+\`\`\`powershell
+
+py -m venv .venv
+
+.venv\\\\Scripts\\\\Activate.ps1
+
+\`\`\`
+
+### 2. Install dependencies
+
+The server has two direct Python runtime dependencies:
+
+- `fastapi>=0.115,<1.0` — HTTP API, middleware, and static file serving
+- `uvicorn[standard]>=0.30,<1.0` — ASGI server used to run the application
+
+Install them directly from the README:
+
+\`\`\`bash
+
+python -m pip install --upgrade pip
+
+python -m pip install "fastapi&gt;=0.115,&lt;1.0" "uvicorn\[standard\]&gt;=0.30,&lt;1.0"
+
+\`\`\`
+
+A separate dependency file is not required for setup because the complete dependency list is documented above.
+
+### 3. Prepare configuration
+
+Create a local `.env` file and adjust the values for your environment. Do not commit `.env` if it contains private tokens or machine-specific settings.
+
+For a first local run, the defaults are sufficient. The server expects the UI files in `ui-dist/`, so create that directory and copy the UI files into it:
+
+\`\`\`bash
+
+mkdir -p ui-dist/locale
+
+cp index.html favicon.png ui-dist/
+
+cp de.json en.json ui-dist/locale/
+
+\`\`\`
+
+### 4. Add audio files
+
+Create one or more game folders below `library/`:
+
+
 library/
-└── <game-name>/
+
+└── My Campaign/
     ├── Musik/
+      ├── exploration.ogg
+      └── battle.mp3
     ├── Ambience/
+      └── forest.wav
     └── SFX/
-```
+      ├── sword-hit.wav
+      └── door.ogg
 
-The UI displays the filenames as available audio assets.
+The folder names `Musik`, `Ambience`, and `SFX` are part of the current server contract. Supported audio extensions are `.mp3`, `.wav`, `.ogg`, `.opus`, `.flac`, `.m4a`, and `.aac`.
 
-## Key Concepts
+### 5. Start the server
 
-- **Game:** The top-level library scope.
-- **Session:** A specific adventure, chapter, or play project within a game.
-- **Scene:** A saved audio configuration for a particular moment.
-- **Bank:** A collection of one audio category within a scene: music, ambience, or SFX.
-- **Scene automation:** Audio that starts automatically when entering a scene.
-- **Pad gain:** The individual volume adjustment for one SFX pad, separate from the SFX bus volume.
+\`\`\`bash
 
-## Playback Modes
+python [soundboard-server.py](http://soundboard-server.py)
 
-The global playback control provides three modes:
+\`\`\`
 
-- **Playback off:** Active audio sources are stopped.
-- **Scene playback:** The active scene runs; changing scenes stops the previous playback.
-- **Scene automation:** Music, ambience, and SFX marked for automation start when changing scenes.
+Open `http://127.0.0.1:8000` locally. For another device on the same network, open `http://<server-ip>:8000`.
 
-## Music Playlist
+Check the server with:
 
-### Adding Tracks
+\`\`\`bash
 
-Add available music assets to the active scene's playlist. The order can be changed within the playlist.
+curl [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health)
 
-### Playback Controls
+\`\`\`
 
-The music card provides:
+## Configuration
 
-- play/pause
-- previous track
-- next track
-- selection of a specific track
-- crossfade control
-- loop control
-- music bus volume
-- a dedicated stop button
+The server accepts environment variables from `.env` and equivalent command-line flags:
 
-### Loop Modes
+| Variable | Default | Purpose |
 
-The loop button cycles through:
+|---|---:|---|
 
-1. **Loop off:** Playback ends after the last track.
-2. **Track loop:** The current track repeats.
-3. **Playlist loop:** The playlist starts again with the first track after the last track.
+| `SOUNDBOARD_GAMES_DIR` | `./library` | Root folder containing game libraries |
 
-When playlist loop is active, the **Next track** button also returns to the first track after the last track.
+| `SOUNDBOARD_DB` | `./soundboard.db` | SQLite database path |
 
-## Ambience
+| `SOUNDBOARD_UI_DIR` | `./ui-dist` | Folder containing `index.html` and the `locale/` directory |
 
-Ambience consists of multiple layers that can run simultaneously.
+| `SOUNDBOARD_HOST` | `0.0.0.0` | Network bind address |
 
-Each layer can provide controls for:
+| `SOUNDBOARD_PORT` | `8000` | HTTP port |
 
-- on/off
-- volume
-- fade duration
-- scene-change automation
-- stopping all ambience layers
+| `SOUNDBOARD_LANGUAGE` | `en` | Default UI language; must match a file in `locale/` |
 
-Ambience automation starts the selected layers when entering the scene.
+| `SOUNDBOARD_ADMIN_TOKEN` | empty | Protects write endpoints when set |
 
-## SFX Bank
+| `SOUNDBOARD_CORS_ORIGINS` | `*` | Comma-separated allowed browser origins |
 
-### Adding SFX
+| `SOUNDBOARD_LOG_FILE` | empty | Optional rotating log file |
 
-Select available SFX assets from the library and add them to the scene's SFX bank.
+| `SOUNDBOARD_WRITE_RATE_LIMIT` | `60` | Maximum writes per client per minute |
 
-### Using a Pad
+## Operational and security notes
 
-A pad can be triggered by clicking it or pressing its assigned hotkey. The available modes are:
+- This is designed for trusted LAN use, not as a public internet-facing service.
+- Set `SOUNDBOARD_ADMIN_TOKEN` before exposing the server beyond a trusted local network.
+- Replace the development CORS value `*` with exact origins in production.
+- Use HTTPS and a reverse proxy if the service must cross an untrusted network.
+- Back up `soundboard.db` and the `library/` directory together.
+- Audio files are scanned lazily and the scan result is cached briefly; after adding files, reload the UI or wait for the cache to refresh.
+- Browser autoplay policies require a user interaction. Click **Enable audio** before playback.
+- Keep `.env`, the SQLite database, logs, and audio libraries out of version control unless there is a deliberate reason to publish them.
 
-- **Poly:** Each click starts an additional playback instance.
-- **Toggle:** One click starts playback and another click stops it.
-- **Restart:** A new click starts the sound again from the beginning. It uses the `↪︎` symbol.
-- **Loop:** One click starts the asset and repeats it continuously. Clicking the same pad again stops the loop. It uses the `↻` symbol.
+## API overview
 
-Loop mode is implemented for both supported SFX playback paths: decoded Web Audio buffers and the HTML audio fallback.
+- `GET /api/health` — database and scan status
+- `GET /api/games` — available games
+- `POST /api/games` — create a game folder
+- `GET /api/library?game_id=<id>` — list scanned audio assets
+- `GET /api/scenes?game_id=<id>` — list scenes
+- `POST /api/scenes` — create or update a scene
+- `PATCH /api/scenes/<scene_id>/order` — reorder a scene
+- `DELETE /api/scenes/<scene_id>` — delete a scene
+- `GET /api/sessions?game_id=<id>` — list sessions
+- `POST /api/sessions` — create a session
+- `GET /api/stream/<game_id>/<bucket>/<path>` — stream an audio asset
 
-### Configuring a Pad
-
-The pad settings menu can be used to change:
-
-- color
-- visible name
-- individual gain
-- playback mode
-- hotkey
-- removing the pad from the scene
-
-Pad gain accepts values from **−60 dB to +12 dB**. Existing pads without an explicit gain use `0 dB`.
-
-### SFX Automation on Scene Change
-
-Each pad can be marked for scene changes. Marked pads are triggered automatically when the corresponding scene starts.
-
-The global **“Start marked SFX on scene change”** setting is automatically synchronized with the pad markers:
-
-- Marking at least one pad enables the global setting.
-- Unmarking the last marked pad disables the global setting.
-- Disabling the global setting removes all pad markers.
-- Removing a marked pad recalculates the global state.
-
-This prevents contradictory states between the global setting and individual pads.
-
-## Localization
-
-The UI supports German and English.
-
-Localized strings include:
-
-- navigation and playback controls
-- SFX pad modes
-- SFX gain labels and help text
-- gain validation messages
-- Loop labels and help text
-- scene automation controls
-- stop buttons and tooltips
-
-If a locale file is incomplete, the UI uses the selected language's fallback values before falling back to English.
-
-## Keyboard Controls and Focus Handling
-
-- Assigned hotkeys trigger their respective SFX pads.
-- The spacebar can be used as a panic/stop control unless focus is inside an interactive form element.
-- Global SFX hotkeys are ignored while focus is inside an input, textarea, select, or button.
-- Pad settings retain focus and cursor position during UI rerenders.
-- Interactive elements can be operated with `Tab` and `Enter`.
-
-## Audio Routing
-
-The application separates audio into the following levels:
-
-- master volume
-- music bus
-- ambience bus
-- SFX bus
-- individual ambience-layer volume
-- individual SFX-pad gain
-
-SFX gain is applied to both the decoded buffer path and the HTML audio fallback before the signal reaches the SFX bus.
-
-Ducking can lower background audio while voice playback is active and raise it again afterward.
-
-## Favicon Support
-
-Version 0.3.0 introduced support for:
-
-```text
-/favicon.ico
-/favicon.png
-```
-
-The server automatically searches for favicon files in:
-
-```text
-ui-dist/
-ui-dist/public/
-ui-dist/static/
-```
-
-If no file is found there, it also checks the directory next to the server file and the current working directory.
-
-## Verification
-
-After changing the server source, run at least a Python syntax check:
-
-```bash
-python3 -m py_compile soundboard-server.py
-```
-
-For UI changes, also verify the HTML JavaScript syntax:
-
-```bash
-node --check <extracted-inline-script>.js
-```
-
-Test audio events, scene changes, pad modes, gain editing, localization, and hotkeys in a current browser.
-
-## Upgrade Notes for 0.4.0
-
-- No database migration is required.
-- Existing scenes remain compatible.
-- Existing pads without `gainDb` use `0 dB`.
-- Existing pads keep their saved mode.
-- Newly created pads default to `poly`.
-- Existing locale files should include the new SFX gain and Loop translation keys; the UI also provides fallback values.
+FastAPI also exposes interactive API documentation at `/docs` while the server is running.
