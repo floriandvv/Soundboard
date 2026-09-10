@@ -29,14 +29,14 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
 
 - Python 3.10 or newer
 - A modern browser with Web Audio API support
-- Dependencies listed in `requirements.txt`:
+- Dependencies listed:
   - FastAPI
   - Uvicorn
 
 ## Installation
 
 ```bash
-git clone https://github.com/OWNER/REPOSITORY.git
+git clone https://github.com/floriandvv/Soundboard.git
 cd REPOSITORY
 
 python3 -m venv .venv
