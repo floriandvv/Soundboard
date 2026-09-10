@@ -37,7 +37,7 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
 
 ```bash
 git clone https://github.com/floriandvv/Soundboard.git
-cd REPOSITORY
+cd Soundboard
 
 python3 -m venv .venv
 source .venv/bin/activate
