@@ -56,16 +56,6 @@ See [Release Notes 0.5.0](RELEASE_NOTES_0.5.0.md) for the complete change list.
 - Consistent stop controls for Music, Ambience, and SFX
 - Existing favicon support for `favicon.ico` and `favicon.png`
 
-# DnD Soundboard
-
-A browser-based soundboard for tabletop role-playing sessions with music playlists, ambience layers, and instantly triggered SFX pads.
-
-## Version
-
-Current: 0.5.0 — Adds Random, Round Robin, and Hold SFX modes, configurable asset pools, improved scene automation, persistent pad-menu state, and restoration of the active game and session after refresh.
-
-See Release Notes 0.5.0 for the complete change list.
-
 ## Features
 
 - Game libraries with separate audio categories
